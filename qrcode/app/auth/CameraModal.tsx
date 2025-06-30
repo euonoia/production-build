@@ -66,7 +66,7 @@ export default function CameraModal({ visible, onClose }: Props) {
           style={styles.camera}
           facing="back"
           onBarcodeScanned={handleBarCodeScanned}
-          barCodeScannerSettings={{ barCodeTypes: ['qr'] }}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         />
         <Button title="Close" onPress={onClose} />
         <Text style={styles.text}>Scan a friend's QR code</Text>

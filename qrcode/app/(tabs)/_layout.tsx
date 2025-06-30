@@ -48,9 +48,23 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="Database"
         options={{
-          title: 'Tab Two',
+          title: 'Database',
+          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+        }}
+      />
+       <Tabs.Screen
+        name="Qr"
+        options={{
+          title: 'Qr',
+          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+        }}
+      />
+       <Tabs.Screen
+        name="Function"
+        options={{
+          title: 'Function',
           tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
         }}
       />

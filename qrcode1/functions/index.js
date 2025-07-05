@@ -14,6 +14,7 @@ const db = firebase.firestore();
 
 const cors = require("cors");
 app.use(cors({origin: true}));
+app.use(express.json()); // Add this line after app.use(cors(...))
 
 app.get("/helloworld", (req, res) => {
   const name = req.body.name;
@@ -38,6 +39,35 @@ app.get("/read-data", async (req, res) => {
       contact: data.contact,
       email: data.email
     });
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
+});
+
+app.post("/add-data", async (req, res) => {
+  const { userId, invited } = req.body;
+  if (!userId || typeof invited !== "boolean") {
+    return res.status(400).send("Missing required fields or invalid invited value");
+  }
+  try {
+    await db.collection("Information").doc(userId).set(
+      { invited },
+      { merge: true } // <-- This ensures existing data is not overwritten
+    );
+    return res.status(201).send("User added/updated successfully");
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
+});
+
+app.get("/list-users", async (req, res) => {
+  try {
+    const snapshot = await db.collection("Information").get();
+    const users = [];
+    snapshot.forEach(doc => {
+      users.push({ userId: doc.id, ...doc.data() });
+    });
+    return res.status(200).json(users);
   } catch (error) {
     return res.status(500).send(error.message);
   }

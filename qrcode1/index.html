@@ -6,23 +6,33 @@
     <title>Document</title>
 </head>
 <body>
-    <!-- Place this in your HTML file -->
-    <input type="text" id="userIdInput" placeholder="Enter userId">
-    <button onclick="fetchUserData()">Fetch User Data</button>
-    <div id="result"></div>
+  <h2 id="formTitle">Add User</h2>
+  <form id="addUserForm">
+    <input type="hidden" id="userId">
+    <label>Invited: 
+      <select id="invited" required>
+        <option value="true">Yes</option>
+        <option value="false">No</option>
+      </select>
+    </label><br>
+    <button type="submit" id="submitBtn">Add User</button>
+    <button type="button" id="cancelBtn" style="display:none;">Cancel</button>
+  </form>
 
-    <script>
-        
-    async function fetchUserData() {
-      const userId = document.getElementById('userIdInput').value;
-      if (!userId) {
-        document.getElementById('result').innerText = 'Please enter a userId.';
-        return;
-      }
+  <h2>All Users</h2>
+  <div id="result"></div>
 
-      // Replace the URL below with your actual deployed function URL or local emulator URL
-      const url = `http://localhost:5001/fuze-be491/us-central1/v1/read-data?userId=${userId}`;
+  <script>
+    let editMode = false;
 
+    window.onload = function() {
+      fetchAllUsers();
+      document.getElementById('addUserForm').onsubmit = addUser;
+      document.getElementById('cancelBtn').onclick = resetForm;
+    };
+
+    async function fetchAllUsers() {
+      const url = "http://localhost:5001/fuze-be491/us-central1/v1/list-users";
       try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -30,13 +40,66 @@
           document.getElementById('result').innerText = `Error: ${errorText}`;
           return;
         }
-        const data = await response.json();
-        document.getElementById('result').innerText = 
-          `First Name: ${data.firstName}\nLast Name: ${data.lastName}\nAge: ${data.age}\nemail: ${data.email}\ncontact: ${data.contact}`;
+        const users = await response.json();
+        if (users.length === 0) {
+          document.getElementById('result').innerText = "No users found.";
+          return;
+        }
+        let output = "<ul>";
+        users.forEach(user => {
+          output += `<li style="cursor:pointer;" onclick="selectUser('${user.userId}', ${user.invited})">
+            User ID: ${user.userId} | Invited: ${user.invited}
+          </li>`;
+        });
+        output += "</ul>";
+        document.getElementById('result').innerHTML = output;
       } catch (error) {
         document.getElementById('result').innerText = `Error: ${error.message}`;
       }
     }
-    </script>
+
+    // Make selectUser globally accessible
+    window.selectUser = function(userId, invited) {
+      document.getElementById('userId').value = userId;
+      document.getElementById('invited').value = invited ? "true" : "false";
+      document.getElementById('formTitle').innerText = "Edit User";
+      document.getElementById('submitBtn').innerText = "Update User";
+      document.getElementById('cancelBtn').style.display = "";
+      editMode = true;
+    };
+
+    function resetForm() {
+      document.getElementById('addUserForm').reset();
+      document.getElementById('userId').value = "";
+      document.getElementById('formTitle').innerText = "Add User";
+      document.getElementById('submitBtn').innerText = "Add User";
+      document.getElementById('cancelBtn').style.display = "none";
+      editMode = false;
+    }
+
+    async function addUser(event) {
+      event.preventDefault();
+      let userId = document.getElementById('userId').value;
+      const invited = document.getElementById('invited').value === "true";
+      // If not in edit mode, generate a new userId
+      if (!editMode || !userId) {
+        userId = "user_" + Date.now();
+      }
+      const url = "http://localhost:5001/fuze-be491/us-central1/v1/add-data";
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, invited })
+        });
+        const text = await response.text();
+        alert(text);
+        fetchAllUsers();
+        resetForm();
+      } catch (error) {
+        alert("Error: " + error.message);
+      }
+    }
+  </script>
 </body>
 </html>

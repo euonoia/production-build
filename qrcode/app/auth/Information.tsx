@@ -9,11 +9,12 @@ export default function Information() {
   const [lastName, setLastName] = useState('');
   const [age, setAge] = useState('');
   const [contact, setContact] = useState('');
+  const [country, setCountry] = useState('');
   const auth = getAuth();
   const user = auth.currentUser;
 
   const handleSubmit = async () => {
-    if (!firstName || !lastName || !age || !contact) {
+    if (!firstName || !lastName || !age || !contact || !country) {
       Alert.alert('Please fill in all fields.');
       return;
     }
@@ -28,6 +29,7 @@ export default function Information() {
         lastName,
         age,
         contact,
+        country,
         email: user.email || '',
         createdAt: new Date()
       });
@@ -36,6 +38,7 @@ export default function Information() {
       setLastName('');
       setAge('');
       setContact('');
+      setCountry('');
     } catch (error) {
       Alert.alert('Error saving information.');
       console.log(error);
@@ -71,6 +74,12 @@ export default function Information() {
           onChangeText={setContact}
           style={styles.input}
           keyboardType="phone-pad"
+        />
+        <TextInput
+          placeholder="Country"
+          value={country}
+          onChangeText={setCountry}
+          style={styles.input}
         />
         <TouchableOpacity style={styles.addButton} onPress={handleSubmit}>
           <Text style={styles.buttonText}>Submit</Text>

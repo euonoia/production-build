@@ -84,7 +84,7 @@ export default function Scanner({ visible, onClose }: Props) {
         {scanned && (
           <Button title="Tap to Scan Again" onPress={() => setScanned(false)} />
         )}
-        {qrContent && <Text style={styles.text}>Scanned: {qrContent}</Text>}
+       
       </View>
     </Modal>
   );

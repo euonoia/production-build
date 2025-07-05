@@ -4,6 +4,7 @@ import { CameraView } from 'expo-camera';
 import { Camera } from 'expo-camera';
 import { db } from '../../FirebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 type Props = {
   visible: boolean;
@@ -28,7 +29,20 @@ export default function Scanner({ visible, onClose }: Props) {
     setQrContent(data);
 
     try {
-      // Check if a document with this userId exists in the Event collection
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert('In order to participate, input your complete details.');
+        setTimeout(() => setScanned(false), 1500);
+        return;
+      }
+      // Check if a document with the scanned userId exists in the Event collection
+      // and if it matches the current user's UID
+      if (user.uid !== data) {
+        Alert.alert('Scanned QR does not match your account.');
+        setTimeout(() => setScanned(false), 1500);
+        return;
+      }
       const eventDoc = await getDoc(doc(db, 'Event', data));
       if (eventDoc.exists()) {
         const eventData = eventDoc.data();
@@ -84,7 +98,6 @@ export default function Scanner({ visible, onClose }: Props) {
         {scanned && (
           <Button title="Tap to Scan Again" onPress={() => setScanned(false)} />
         )}
-       
       </View>
     </Modal>
   );

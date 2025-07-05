@@ -5,6 +5,12 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <style>
+      .qr-canvas {
+        margin: 16px 0;
+        display: block;
+      }
+    </style>
 </head>
 <body>
   <h2 id="formTitle">Add User</h2>
@@ -64,12 +70,12 @@
         }
         let output = "<ul>";
         users.forEach(user => {
-          output += `<li style="cursor:pointer;" onclick="selectUser('${user.userId}', '${user.firstName||""}', '${user.lastName||""}', '${user.email||""}')">
+          output += `<li style="cursor:pointer; margin-bottom:32px;" onclick="selectUser('${user.userId}', '${user.firstName||""}', '${user.lastName||""}', '${user.email||""}')">
             <b>${user.firstName||""} ${user.lastName||""}</b> (${user.email||""})<br>
             User ID: ${user.userId}
             <br>Invited: ${user.invited ? "Yes" : "No"}
             <br>Country: ${user.country || "Unknown"}
-            <br><canvas id="qr_${user.userId}" style="display:inline-block;"></canvas>
+            <br><canvas id="qr_${user.userId}" class="qr-canvas"></canvas>
           </li>`;
         });
         output += "</ul>";
@@ -80,7 +86,7 @@
           const qrId = `qr_${user.userId}`;
           new QRious({
             element: document.getElementById(qrId),
-            value: user.userId, // Just the userId, not a URL
+            value: user.userId,
             size: 300
           });
         });

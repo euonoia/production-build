@@ -27,7 +27,7 @@ app.get("/read-data", async (req, res) => {
     return res.status(400).send("Missing userId");
   }
   try {
-    const doc = await db.collection("Information").doc(userId).get();
+    const doc = await db.collection("Event").doc(userId).get();
     if (!doc.exists) {
       return res.status(404).send("Document not found");
     }
@@ -37,7 +37,9 @@ app.get("/read-data", async (req, res) => {
       lastName: data.lastName,
       age: data.age,
       contact: data.contact,
-      email: data.email
+      email: data.email,
+      invited: data.invited || false, // Default to false if not set
+      country: data.country || "Unknown"
     });
   } catch (error) {
     return res.status(500).send(error.message);

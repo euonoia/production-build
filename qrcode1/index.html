@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
 </head>
 <body>
@@ -68,10 +69,21 @@
             User ID: ${user.userId}
             <br>Invited: ${user.invited ? "Yes" : "No"}
             <br>Country: ${user.country || "Unknown"}
+            <br><canvas id="qr_${user.userId}" style="display:inline-block;"></canvas>
           </li>`;
         });
         output += "</ul>";
         document.getElementById('result').innerHTML = output;
+
+        // Generate QR codes after rendering the user list
+        users.forEach(user => {
+          const qrId = `qr_${user.userId}`;
+          new QRious({
+            element: document.getElementById(qrId),
+            value: user.userId, // Just the userId, not a URL
+            size: 300
+          });
+        });
       } catch (error) {
         document.getElementById('result').innerText = `Error: ${error.message}`;
       }

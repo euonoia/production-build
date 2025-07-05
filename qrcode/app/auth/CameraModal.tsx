@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Modal, View, StyleSheet, Text, Button, Alert } from 'react-native';
 import { CameraView } from 'expo-camera';
 import { db } from '../../FirebaseConfig';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 type Props = {
@@ -21,35 +21,50 @@ export default function CameraModal({ visible, onClose }: Props) {
     setScanned(true);
     qrLock.current = true;
 
+    let eventId = '';
     try {
-      // Parse the QR code data as JSON to get the scanned user's userId
-      let friendUid = '';
-      let friendInfo = {};
-      try {
-        const parsed = JSON.parse(data);
-        friendUid = parsed.userId;
-        friendInfo = parsed;
-      } catch {
-        Alert.alert('Invalid QR code format.');
-        setScanned(false);
-        qrLock.current = false;
-        return;
+      // Support both URL with eventId param and plain eventId
+      if (data.startsWith('http')) {
+        const url = new URL(data);
+        eventId = url.searchParams.get('eventId') || '';
+      } else {
+        eventId = data;
       }
+    } catch {
+      eventId = data;
+    }
 
+    if (!eventId) {
+      Alert.alert('Invalid QR code: No eventId found.');
+      setScanned(false);
+      qrLock.current = false;
+      return;
+    }
+
+    try {
       if (!user) {
         Alert.alert('No user logged in.');
         onClose();
         return;
       }
-      await setDoc(doc(db, 'friend', `${user.uid}_${friendUid}`), {
-        userId: user.uid,
-        friendUid,
-        friendInfo, // store all info from QR
-        createdAt: new Date(),
-      });
-      Alert.alert('Friend added!');
+      // Check if event exists and if user is invited
+      const eventDoc = await getDoc(doc(db, 'Event', eventId));
+      if (eventDoc.exists()) {
+        const eventData = eventDoc.data();
+        if (
+          eventData.invitedUsers &&
+          Array.isArray(eventData.invitedUsers) &&
+          eventData.invitedUsers.includes(user.uid)
+        ) {
+          Alert.alert('You are INVITED!');
+        } else {
+          Alert.alert('You are NOT invited.');
+        }
+      } else {
+        Alert.alert('Event not found.');
+      }
     } catch (error) {
-      Alert.alert('Invalid QR code or error saving friend.');
+      Alert.alert('Error checking invitation status.');
       console.log(error);
     }
     setTimeout(() => {
@@ -69,7 +84,7 @@ export default function CameraModal({ visible, onClose }: Props) {
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         />
         <Button title="Close" onPress={onClose} />
-        <Text style={styles.text}>Scan a friend's QR code</Text>
+        <Text style={styles.text}>Scan event QR code</Text>
       </View>
     </Modal>
   );

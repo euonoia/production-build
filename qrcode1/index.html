@@ -7,6 +7,14 @@
 </head>
 <body>
   <h2 id="formTitle">Add User</h2>
+  <!-- Display selected user info here -->
+  <div id="selectedUserInfo" style="margin-bottom:10px; display:none;">
+    <b>First Name:</b> <span id="displayFirstname"></span><br>
+    <b>Last Name:</b> <span id="displayLastname"></span><br>
+    <b>Email:</b> <span id="displayEmail"></span><br>
+  </div>
+  <!-- Success/Error message -->
+  <div id="message" style="color: green; margin-bottom: 10px; display: none;"></div>
   <form id="addUserForm">
     <input type="hidden" id="userId">
     <label>Invited: 
@@ -31,6 +39,14 @@
       document.getElementById('cancelBtn').onclick = resetForm;
     };
 
+    function showMessage(msg, isError = false) {
+      const messageDiv = document.getElementById('message');
+      messageDiv.style.color = isError ? 'red' : 'green';
+      messageDiv.innerText = msg;
+      messageDiv.style.display = '';
+      setTimeout(() => { messageDiv.style.display = 'none'; }, 2000);
+    }
+
     async function fetchAllUsers() {
       const url = "http://localhost:5001/fuze-be491/us-central1/v1/list-users";
       try {
@@ -47,8 +63,11 @@
         }
         let output = "<ul>";
         users.forEach(user => {
-          output += `<li style="cursor:pointer;" onclick="selectUser('${user.userId}', ${user.invited})">
-            User ID: ${user.userId} | Invited: ${user.invited}
+          output += `<li style="cursor:pointer;" onclick="selectUser('${user.userId}', '${user.firstName||""}', '${user.lastName||""}', '${user.email||""}')">
+            <b>${user.firstName||""} ${user.lastName||""}</b> (${user.email||""})<br>
+            User ID: ${user.userId}
+            <br>Invited: ${user.invited ? "Yes" : "No"}
+            <br>Country: ${user.country || "Unknown"}
           </li>`;
         });
         output += "</ul>";
@@ -59,9 +78,13 @@
     }
 
     // Make selectUser globally accessible
-    window.selectUser = function(userId, invited) {
+    window.selectUser = function(userId, firstName, lastName, email) {
       document.getElementById('userId').value = userId;
-      document.getElementById('invited').value = invited ? "true" : "false";
+      // Display user info
+      document.getElementById('displayFirstname').innerText = firstName || "";
+      document.getElementById('displayLastname').innerText = lastName || "";
+      document.getElementById('displayEmail').innerText = email || "";
+      document.getElementById('selectedUserInfo').style.display = "";
       document.getElementById('formTitle').innerText = "Edit User";
       document.getElementById('submitBtn').innerText = "Update User";
       document.getElementById('cancelBtn').style.display = "";
@@ -74,6 +97,7 @@
       document.getElementById('formTitle').innerText = "Add User";
       document.getElementById('submitBtn').innerText = "Add User";
       document.getElementById('cancelBtn').style.display = "none";
+      document.getElementById('selectedUserInfo').style.display = "none";
       editMode = false;
     }
 
@@ -93,11 +117,11 @@
           body: JSON.stringify({ userId, invited })
         });
         const text = await response.text();
-        alert(text);
+        showMessage(text);
         fetchAllUsers();
         resetForm();
       } catch (error) {
-        alert("Error: " + error.message);
+        showMessage("Error: " + error.message, true);
       }
     }
   </script>

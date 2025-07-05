@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <!-- Place this in your HTML file -->
+    <input type="text" id="userIdInput" placeholder="Enter userId">
+    <button onclick="fetchUserData()">Fetch User Data</button>
+    <div id="result"></div>
+
+    <script>
+        
+    async function fetchUserData() {
+      const userId = document.getElementById('userIdInput').value;
+      if (!userId) {
+        document.getElementById('result').innerText = 'Please enter a userId.';
+        return;
+      }
+
+      // Replace the URL below with your actual deployed function URL or local emulator URL
+      const url = `http://localhost:5001/fuze-be491/us-central1/v1/read-data?userId=${userId}`;
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorText = await response.text();
+          document.getElementById('result').innerText = `Error: ${errorText}`;
+          return;
+        }
+        const data = await response.json();
+        document.getElementById('result').innerText = 
+          `First Name: ${data.firstName}\nLast Name: ${data.lastName}\nAge: ${data.age}\nemail: ${data.email}\ncontact: ${data.contact}`;
+      } catch (error) {
+        document.getElementById('result').innerText = `Error: ${error.message}`;
+      }
+    }
+    </script>
+</body>
+</html>

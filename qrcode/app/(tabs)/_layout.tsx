@@ -54,6 +54,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
         }}
       />
+        <Tabs.Screen
+        name="Scan"
+        options={{
+          title: 'Scan',
+          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+        }}
+      />
        <Tabs.Screen
         name="Qr"
         options={{
@@ -64,10 +71,11 @@ export default function TabLayout() {
        <Tabs.Screen
         name="Function"
         options={{
-          title: 'Function',
+          title: 'Add friend',
           tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
         }}
       />
+     
     </Tabs>
   );
 }

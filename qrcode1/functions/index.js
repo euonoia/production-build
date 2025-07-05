@@ -50,7 +50,7 @@ app.post("/add-data", async (req, res) => {
     return res.status(400).send("Missing required fields or invalid invited value");
   }
   try {
-    await db.collection("Information").doc(userId).set(
+    await db.collection("Event").doc(userId).set(
       { invited },
       { merge: true } // <-- This ensures existing data is not overwritten
     );
@@ -62,7 +62,7 @@ app.post("/add-data", async (req, res) => {
 
 app.get("/list-users", async (req, res) => {
   try {
-    const snapshot = await db.collection("Information").get();
+    const snapshot = await db.collection("Event").get();
     const users = [];
     snapshot.forEach(doc => {
       users.push({ userId: doc.id, ...doc.data() });

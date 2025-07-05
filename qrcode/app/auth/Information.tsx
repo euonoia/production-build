@@ -33,6 +33,17 @@ export default function Information() {
         email: user.email || '',
         createdAt: new Date()
       });
+      // Add to Event collection as well
+      await setDoc(doc(db, 'Event', user.uid), {
+        userId: user.uid,
+          firstName,
+          lastName,
+          age,
+          contact,
+          country,
+          email: user.email || '',
+        eventTime: new Date()
+      });
       Alert.alert('Information saved!');
       setFirstName('');
       setLastName('');

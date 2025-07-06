@@ -1,5 +1,4 @@
 const functions = require("firebase-functions");
-
 const firebase = require("firebase-admin");
 const serviceAccount = require("./permission.json");
 
@@ -11,62 +10,53 @@ const express = require("express");
 const app = express();
 const db = firebase.firestore();
 
-
 const cors = require("cors");
 app.use(cors({origin: true}));
-app.use(express.json()); // Add this line after app.use(cors(...))
+app.use(express.json());
 
-app.get("/helloworld", (req, res) => {
-  const name = req.body.name;
-  return res.status(200).send("Hello World! name passed is : " + name);
-});
-
+// GET user data: /read-data?country=south_korea&userId=abc123
 app.get("/read-data", async (req, res) => {
-  const userId = req.query.userId; // Use query parameter for GET requests
-  if (!userId) {
-    return res.status(400).send("Missing userId");
+  const { country, userId } = req.query;
+  if (!country || !userId) {
+    return res.status(400).send("Missing country or userId");
   }
   try {
-    const doc = await db.collection("Event").doc(userId).get();
+    const docRef = db.collection("Event").doc(country).collection("users").doc(userId);
+    const doc = await docRef.get();
     if (!doc.exists) {
-      return res.status(404).send("Document not found");
+      return res.status(404).send("User not found");
     }
-    const data = doc.data();
-    return res.status(200).json({
-      firstName: data.firstName,
-      lastName: data.lastName,
-      age: data.age,
-      contact: data.contact,
-      email: data.email,
-      invited: data.invited || false, // Default to false if not set
-      country: data.country || "Unknown"
-    });
+    return res.status(200).json(doc.data());
   } catch (error) {
     return res.status(500).send(error.message);
   }
 });
 
+// POST add/update user: { country, userId, ...fields }
 app.post("/add-data", async (req, res) => {
-  const { userId, invited } = req.body;
-  if (!userId || typeof invited !== "boolean") {
-    return res.status(400).send("Missing required fields or invalid invited value");
+  const { country, userId, ...fields } = req.body;
+  if (!country || !userId) {
+    return res.status(400).send("Missing country or userId");
   }
   try {
-    await db.collection("Event").doc(userId).set(
-      { invited },
-      { merge: true } // <-- This ensures existing data is not overwritten
-    );
+    const docRef = db.collection("Event").doc(country).collection("users").doc(userId);
+    await docRef.set(fields, { merge: true });
     return res.status(201).send("User added/updated successfully");
   } catch (error) {
     return res.status(500).send(error.message);
   }
 });
 
+// GET all users in a country: /list-users?country=south_korea
 app.get("/list-users", async (req, res) => {
+  const { country } = req.query;
+  if (!country) {
+    return res.status(400).send("Missing country");
+  }
   try {
-    const snapshot = await db.collection("Event").get();
+    const usersSnapshot = await db.collection("Event").doc(country).collection("users").get();
     const users = [];
-    snapshot.forEach(doc => {
+    usersSnapshot.forEach(doc => {
       users.push({ userId: doc.id, ...doc.data() });
     });
     return res.status(200).json(users);
@@ -75,4 +65,14 @@ app.get("/list-users", async (req, res) => {
   }
 });
 
+app.get("/list-countries", async (req, res) => {
+  try {
+    const snapshot = await db.collection("Event").get();
+    const countries = [];
+    snapshot.forEach(doc => countries.push({ country: doc.id }));
+    return res.status(200).json(countries);
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
+});
 exports.v1 = functions.https.onRequest(app);

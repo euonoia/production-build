@@ -34,14 +34,18 @@
     <button type="button" id="cancelBtn" style="display:none;">Cancel</button>
   </form>
 
+  <label for="countrySelect"><b>Select Country:</b></label>
+  <select id="countrySelect" style="margin-bottom: 16px;"></select>
+
   <h2>All Users</h2>
   <div id="result"></div>
 
   <script>
     let editMode = false;
+    let COUNTRY = ""; // Global variable to store selected country
 
     window.onload = function() {
-      fetchAllUsers();
+      loadCountries();
       document.getElementById('addUserForm').onsubmit = addUser;
       document.getElementById('cancelBtn').onclick = resetForm;
     };
@@ -55,7 +59,11 @@
     }
 
     async function fetchAllUsers() {
-      const url = "http://localhost:5001/fuze-be491/us-central1/v1/list-users";
+      if (!COUNTRY) {
+        document.getElementById('result').innerText = "Please select a country.";
+        return;
+      }
+      const url = `http://localhost:5001/fuze-be491/us-central1/v1/list-users?country=${COUNTRY}`;
       try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -123,7 +131,6 @@
       event.preventDefault();
       let userId = document.getElementById('userId').value;
       const invited = document.getElementById('invited').value === "true";
-      // If not in edit mode, generate a new userId
       if (!editMode || !userId) {
         userId = "user_" + Date.now();
       }
@@ -132,7 +139,7 @@
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, invited })
+          body: JSON.stringify({ country: COUNTRY, userId, invited }) // <-- add country
         });
         const text = await response.text();
         showMessage(text);
@@ -140,6 +147,34 @@
         resetForm();
       } catch (error) {
         showMessage("Error: " + error.message, true);
+      }
+    }
+
+    async function loadCountries() {
+      const url = `http://localhost:5001/fuze-be491/us-central1/v1/list-countries`;
+      try {
+        const response = await fetch(url);
+        const countries = await response.json();
+        const select = document.getElementById('countrySelect');
+        select.innerHTML = "";
+        countries.forEach(obj => {
+          const country = obj.country;
+          const opt = document.createElement('option');
+          opt.value = country;
+          opt.text = country;
+          select.appendChild(opt);
+        });
+        if (countries.length > 0) {
+          COUNTRY = countries[0].country;
+          select.value = COUNTRY;
+          fetchAllUsers();
+        }
+        select.onchange = function() {
+          COUNTRY = this.value;
+          fetchAllUsers();
+        };
+      } catch (error) {
+        document.getElementById('result').innerText = "Error loading countries: " + error.message;
       }
     }
   </script>

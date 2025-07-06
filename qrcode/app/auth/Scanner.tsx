@@ -36,25 +36,50 @@ export default function Scanner({ visible, onClose }: Props) {
         setTimeout(() => setScanned(false), 1500);
         return;
       }
-      // Check if a document with the scanned userId exists in the Event collection
-      // and if it matches the current user's UID
-      if (user.uid !== data) {
-        Alert.alert('Scanned QR does not match your account.');
+
+      // 1. Get the current user's country from Information/{userId}
+      const infoDoc = await getDoc(doc(db, 'Information', user.uid));
+      if (!infoDoc.exists()) {
+        Alert.alert('User information not found. Please complete your profile.');
         setTimeout(() => setScanned(false), 1500);
         return;
       }
-      const eventDoc = await getDoc(doc(db, 'Event', data));
-      if (eventDoc.exists()) {
-        const eventData = eventDoc.data();
-        if (eventData.invited === true) {
+      const userInfo = infoDoc.data();
+      const country = userInfo.country;
+
+      // 2. Try to parse the scanned QR code as JSON (recommended QR format)
+      let scannedUserId = '';
+      let scannedCountry = '';
+      try {
+        const parsed = JSON.parse(data);
+        scannedUserId = parsed.userId;
+        scannedCountry = parsed.country;
+      } catch {
+        // If not JSON, treat as just userId
+        scannedUserId = data;
+        scannedCountry = country; // fallback to current user's country
+      }
+
+      // 3. Check if the scanned QR code matches the current user
+      if (scannedUserId !== user.uid) {
+        Alert.alert('This is not your QR code or this content is restricted to your country.');
+        setTimeout(() => setScanned(false), 1500);
+        return;
+      }
+
+      // 4. Check if the user exists in Event/{country}/users/{userId}
+      const eventUserDoc = await getDoc(doc(db, 'Event', country, 'users', user.uid));
+      if (eventUserDoc.exists()) {
+        const eventUserData = eventUserDoc.data();
+        if (eventUserData.invited === true) {
           Alert.alert('You are INVITED!');
-        } else if (eventData.invited === false) {
+        } else if (eventUserData.invited === false) {
           Alert.alert('You are NOT invited.');
         } else {
           Alert.alert('Invitation status unknown.');
         }
       } else {
-        Alert.alert('User not found in Event database.');
+        Alert.alert('You are not registered for this event/country.');
       }
     } catch (err) {
       Alert.alert('Error checking invitation status.');

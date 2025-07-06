@@ -1,5 +1,6 @@
 import { StyleSheet, TextInput, TouchableOpacity, Text, SafeAreaView, View, Alert } from 'react-native';
 import React, { useState } from 'react';
+import { Picker } from '@react-native-picker/picker'; // <-- Add this import
 import { db } from '../../FirebaseConfig';
 import { doc, setDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -23,6 +24,7 @@ export default function Information() {
       return;
     }
     try {
+      // Save to Information collection as before
       await setDoc(doc(db, 'Information', user.uid), {
         userId: user.uid,
         firstName,
@@ -33,17 +35,22 @@ export default function Information() {
         email: user.email || '',
         createdAt: new Date()
       });
-      // Add to Event collection as well
-      await setDoc(doc(db, 'Event', user.uid), {
-        userId: user.uid,
+
+      // Save to Event/countries/{country}/users/{userId}
+      await setDoc(
+        doc(db, 'Event', country, 'users', user.uid),
+        {
+          userId: user.uid,
           firstName,
           lastName,
           age,
           contact,
           country,
           email: user.email || '',
-        eventTime: new Date()
-      });
+          eventTime: new Date()
+        }
+      );
+
       Alert.alert('Information saved!');
       setFirstName('');
       setLastName('');
@@ -86,12 +93,21 @@ export default function Information() {
           style={styles.input}
           keyboardType="phone-pad"
         />
-        <TextInput
-          placeholder="Country"
-          value={country}
-          onChangeText={setCountry}
-          style={styles.input}
-        />
+        {/* Country Dropdown */}
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={country}
+            onValueChange={(itemValue) => setCountry(itemValue)}
+            style={styles.picker}
+          >
+            <Picker.Item label="Select Country" value="" />
+            <Picker.Item label="South Korea" value="south_korea" />
+            <Picker.Item label="Japan" value="japan" />
+            <Picker.Item label="USA" value="usa" />
+            <Picker.Item label="Philippines" value="philippines" />
+            <Picker.Item label="Thailand" value="thailand" />
+          </Picker>
+        </View>
         <TouchableOpacity style={styles.addButton} onPress={handleSubmit}>
           <Text style={styles.buttonText}>Submit</Text>
         </TouchableOpacity>
@@ -125,6 +141,19 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderRadius: 8,
     backgroundColor: '#fff',
+  },
+  pickerContainer: {
+    width: '100%',
+    borderColor: 'gray',
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 9,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
+  picker: {
+    width: '100%',
+    height: 50,
   },
   addButton: {
     padding: 12,

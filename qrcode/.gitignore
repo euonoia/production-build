@@ -9,6 +9,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+
+qrcode/FirebaseConfig.ts
+
 # Native
 .kotlin/
 *.orig.*

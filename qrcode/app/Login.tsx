@@ -3,6 +3,7 @@ import { SafeAreaView, Text, TextInput, TouchableOpacity, StyleSheet } from 'rea
 import { auth } from '@/FirebaseConfig';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // ✅ Add this import
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -16,7 +17,20 @@ export default function Login() {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      if (userCredential.user) router.replace('/(tabs)');
+      const user = userCredential.user;
+
+      if (user) {
+        // ✅ Store user info locally using AsyncStorage
+        await AsyncStorage.setItem(
+          'user',
+          JSON.stringify({
+            uid: user.uid,
+            email: user.email,
+          })
+        );
+
+        router.replace('/(tabs)');
+      }
     } catch (error: any) {
       alert('Login failed: ' + error.message);
     }
@@ -25,15 +39,29 @@ export default function Login() {
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Login</Text>
-      <TextInput placeholder="Email" value={email} onChangeText={setEmail} style={styles.input} />
-      <TextInput placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
+      <TextInput
+        placeholder="Email"
+        value={email}
+        onChangeText={setEmail}
+        style={styles.input}
+        autoCapitalize="none"
+      />
+      <TextInput
+        placeholder="Password"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+        style={styles.input}
+      />
 
       <TouchableOpacity onPress={handleLogin} style={styles.button}>
         <Text style={styles.buttonText}>Login</Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push('/Register')}>
-        <Text style={{ marginTop: 16, color: '#007BFF', textAlign: 'center' }}>Don't have an account? Register</Text>
+        <Text style={{ marginTop: 16, color: '#007BFF', textAlign: 'center' }}>
+          Don't have an account? Register
+        </Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

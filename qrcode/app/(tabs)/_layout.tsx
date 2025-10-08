@@ -47,13 +47,6 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="Database"
-        options={{
-          title: 'Database',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-        }}
-      />
         <Tabs.Screen
         name="Scan"
         options={{

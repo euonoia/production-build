@@ -20,7 +20,7 @@ export default function AddQr() {
           setError('No user logged in.');
           return;
         }
-        const infoRef = doc(db, 'Information', user.uid);
+        const infoRef = doc(db, 'users', user.uid);
         const infoSnap = await getDoc(infoRef);
         if (infoSnap.exists()) {
           setInfo(infoSnap.data());

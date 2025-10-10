@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { SafeAreaView, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { auth } from '@/FirebaseConfig';
+import { auth, db } from '@/FirebaseConfig';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // ✅ Add this import
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -16,21 +17,43 @@ export default function Login() {
     }
 
     try {
+      // ✅ Sign in the user
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      if (user) {
-        // ✅ Store user info locally using AsyncStorage
+      if (!user) {
+        alert('No user found.');
+        return;
+      }
+
+      // ✅ Fetch user data from Firestore
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const role = userData.role || 'user'; // default role
+
+        // ✅ Store user info + role locally
         await AsyncStorage.setItem(
           'user',
           JSON.stringify({
             uid: user.uid,
             email: user.email,
+            role,
           })
         );
 
-        router.replace('/(tabs)');
+        // ✅ Redirect based on role
+        if (role === 'admin') {
+          router.replace('/admin/dashboard');
+        } else {
+          router.replace('/(tabs)');
+        }
+
+      } else {
+        alert('User data not found in database.');
       }
+
     } catch (error: any) {
       alert('Login failed: ' + error.message);
     }
@@ -71,6 +94,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 16 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 24, textAlign: 'center' },
   input: { height: 40, borderColor: 'gray', borderWidth: 1, marginBottom: 12, paddingHorizontal: 8 },
-  button: { backgroundColor: '#007BFF', padding: 12, alignItems: 'center', marginTop: 8 },
+  button: { backgroundColor: '#007BFF', padding: 12, alignItems: 'center', marginTop: 8, borderRadius: 6 },
   buttonText: { color: '#fff', fontSize: 16 },
 });

@@ -8,6 +8,7 @@ export default function AddQr() {
   const [info, setInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [eventStatus, setEventStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchInfo = async () => {
@@ -20,10 +21,31 @@ export default function AddQr() {
           setError('No user logged in.');
           return;
         }
+
+        // --- Fetch user info ---
         const infoRef = doc(db, 'users', user.uid);
         const infoSnap = await getDoc(infoRef);
         if (infoSnap.exists()) {
-          setInfo(infoSnap.data());
+          const userInfo = infoSnap.data();
+          setInfo(userInfo);
+
+          // --- Check Event collection ---
+          if (userInfo.country) {
+            const eventDoc = await getDoc(doc(db, 'Event', userInfo.country, 'users', user.uid));
+            if (eventDoc.exists()) {
+              const eventData = eventDoc.data();
+              const invited = eventData.invited ?? false;
+              setEventStatus(
+                invited
+                  ? `✅ Invited\nName: ${userInfo.firstName} ${userInfo.lastName}\nCountry: ${userInfo.country}`
+                  : `❌ Not Invited\nName: ${userInfo.firstName} ${userInfo.lastName}\nCountry: ${userInfo.country}`
+              );
+            } else {
+              setEventStatus('User not registered for the event.');
+            }
+          } else {
+            setEventStatus('No country info for event lookup.');
+          }
         } else {
           setInfo(null);
           setError('No information found for current user.');
@@ -70,6 +92,7 @@ export default function AddQr() {
     lastName: info.lastName || '',
     email: info.email || '',
     contact: info.contact || '',
+    country: info.country || '', 
   });
 
   return (
@@ -77,7 +100,9 @@ export default function AddQr() {
       <Text style={styles.title}>Your Information QR</Text>
       <QRCode value={qrData} size={220} />
       <Text style={styles.infoText}>{qrData}</Text>
-      <Text style={{marginTop: 10, fontWeight: 'bold'}}>User ID: {auth.currentUser?.uid}</Text>
+      <Text style={{ marginTop: 10, fontWeight: 'bold' }}>User ID: {auth.currentUser?.uid}</Text>
+      
+      {/* Event invitation status */}
     </View>
   );
 }

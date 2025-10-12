@@ -208,6 +208,78 @@ app.post("/events/:country/assign", async (req, res) => {
   }
 });
 
+// -------------------- ANALYTICS ROUTES -------------------- //
+
+// 🔹 Analytics Overview — gives total counts
+app.get("/analytics/overview", async (req, res) => {
+  try {
+    const eventsSnapshot = await db.collection("events").get();
+    let totalCountries = eventsSnapshot.size;
+    let totalUsers = 0;
+    let totalEvents = 0;
+    let totalInvited = 0;
+
+    for (const countryDoc of eventsSnapshot.docs) {
+      const countryId = countryDoc.id;
+
+      // Users count
+      const usersSnap = await db.collection("events").doc(countryId).collection("users").get();
+      totalUsers += usersSnap.size;
+
+      // Invited count
+      usersSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.invited) totalInvited++;
+      });
+
+      // Events count
+      const eventsSnap = await db.collection("events").doc(countryId).collection("events").get();
+      totalEvents += eventsSnap.size;
+    }
+
+    res.json({
+      totalCountries,
+      totalUsers,
+      totalEvents,
+      totalInvited,
+      notInvited: totalUsers - totalInvited,
+    });
+  } catch (err) {
+    console.error("❌ Analytics overview error:", err);
+    res.status(500).send(err.message);
+  }
+});
+
+// 🔹 Analytics Events — breakdown per country for charts
+app.get("/analytics/events", async (req, res) => {
+  try {
+    const eventsSnapshot = await db.collection("events").get();
+    const data = [];
+
+    for (const countryDoc of eventsSnapshot.docs) {
+      const countryId = countryDoc.id;
+
+      const usersSnap = await db.collection("events").doc(countryId).collection("users").get();
+      const invitedCount = usersSnap.docs.filter(d => d.data().invited).length;
+
+      const eventsSnap = await db.collection("events").doc(countryId).collection("events").get();
+
+      data.push({
+        country: countryId,
+        users: usersSnap.size,
+        invited: invitedCount,
+        notInvited: usersSnap.size - invitedCount,
+        events: eventsSnap.size,
+      });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error("❌ Analytics events error:", err);
+    res.status(500).send(err.message);
+  }
+});
+
 
 // -------------------- EXPORT -------------------- //
 exports.v1 = functions.https.onRequest(app);

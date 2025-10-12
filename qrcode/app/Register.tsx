@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { auth, db } from '@/FirebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { router } from 'expo-router';
 
 const countriesList = [
@@ -27,43 +27,61 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // ✅ Default role (hidden from UI)
   const role = 'user';
 
   const [modalVisible, setModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
 
-  const handleRegister = async () => {
+ const handleRegister = async () => {
   if (!firstName || !lastName || !email || !password || !country) {
     alert('Please fill all required fields');
     return;
   }
 
   try {
+    // 1️⃣ Create user in Firebase Auth
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // ✅ Prepare common user data
+    const now = new Date();
+
     const userData = {
       firstName,
       lastName,
       email,
       contact,
       country,
-      role, // always 'user'
-      createdAt: new Date(),
+      role,
+      createdAt: now,
+      updatedAt: now,
     };
 
-    // ✅ 1. Store in main users collection
+    // 2️⃣ Store in main users collection
     await setDoc(doc(db, 'users', user.uid), userData);
 
-    // ✅ 2. Also store in event collection by country
-    const normalizedCountry = country.toLowerCase().replace(/\s+/g, '_'); // e.g., "South Korea" → "south_korea"
+    // 3️⃣ Ensure event country document exists
+    const normalizedCountry = country.toLowerCase().replace(/\s+/g, '_');
+    const countryDocRef = doc(db, 'events', normalizedCountry);
+    const countryDocSnap = await getDoc(countryDocRef);
+
+    if (!countryDocSnap.exists()) {
+      await setDoc(countryDocRef, {
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // 5️⃣ Store user under /events/{country}/users with production-grade fields
     await setDoc(doc(db, 'events', normalizedCountry, 'users', user.uid), {
       ...userData,
-      invited: false, // default
-      eventTime: new Date(),
+      invited: false, // Initially false; can be updated by admin
+      attendanceStatus: 'registered', // 'registered', 'checked_in', 'no_show'
+      inviteSentAt: null, // Set timestamp when invitation is sent
+      inviteAcceptedAt: null, // Set timestamp when user accepts invitation
+      checkedInAt: null, // Set timestamp when QR is scanned
+      eventTime: now, // When user registered for this event
       userId: user.uid,
+      eventName: null,
     });
 
     alert('Registered successfully!');
@@ -72,6 +90,7 @@ export default function Register() {
     alert('Registration failed: ' + error.message);
   }
 };
+
 
   const filteredCountries = countriesList.filter(c =>
     c.toLowerCase().includes(searchText.toLowerCase())

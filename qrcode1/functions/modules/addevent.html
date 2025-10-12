@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Event</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 40px; background: #f5f7fa; }
+    label { display: block; margin: 10px 0 5px; }
+    input, select, button { padding: 8px; width: 100%; max-width: 400px; margin-bottom: 15px; border-radius: 6px; border: 1px solid #ccc; }
+    button { background-color: #007bff; color: white; border: none; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
+    #message { margin-top: 10px; padding: 8px; border-radius: 6px; display: none; }
+    #message.success { background-color: #d4edda; color: #155724; }
+    #message.error { background-color: #f8d7da; color: #721c24; }
+  </style>
+</head>
+<body>
+
+<h2>Add New Event</h2>
+<a href="../index.html">Back to Home</a>
+<div>
+  <label for="countrySelect">Select Country:</label>
+  <select id="countrySelect"></select>
+
+  <label for="eventTitle">Event Title:</label>
+  <input type="text" id="eventTitle" placeholder="Enter event title" />
+
+  <label for="eventTime">Event Start Time:</label>
+  <input type="datetime-local" id="eventTime" />
+
+  <button id="addEventBtn">Add Event</button>
+
+  <div id="message"></div>
+</div>
+
+<script>
+  const BASE_URL = "http://localhost:5001/fuze-be491/us-central1/v1";
+
+  function showMessage(msg, type='success') {
+    const div = document.getElementById('message');
+    div.innerText = msg;
+    div.className = type;
+    div.style.display = 'block';
+    setTimeout(() => { div.style.display = 'none'; }, 3000);
+  }
+
+  function normalizeCountry(country) {
+    return country.trim().toLowerCase().replace(/\s+/g, "_");
+  }
+
+  // Load countries in dropdown
+  async function loadCountries() {
+    try {
+      const res = await fetch(`${BASE_URL}/events`);
+      if(!res.ok) throw new Error(await res.text());
+      const countries = await res.json();
+
+      const select = document.getElementById('countrySelect');
+      countries.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.country;
+        opt.innerText = c.country;
+        select.appendChild(opt);
+      });
+    } catch(err) {
+      showMessage("Error loading countries: " + err.message, "error");
+    }
+  }
+
+  // Add Event Button
+  document.getElementById('addEventBtn').addEventListener('click', async () => {
+    const country = document.getElementById('countrySelect').value;
+    const eventTitle = document.getElementById('eventTitle').value.trim();
+    const eventTime = document.getElementById('eventTime').value;
+
+    if (!country || !eventTitle || !eventTime) {
+      showMessage("Please fill all fields", "error");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${BASE_URL}/events/${normalizeCountry(country)}/add-event`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventTitle, eventTime })
+      });
+
+      if(!res.ok) throw new Error(await res.text());
+      showMessage(`Event "${eventTitle}" added successfully!`);
+      document.getElementById('eventTitle').value = "";
+      document.getElementById('eventTime').value = "";
+
+    } catch(err) {
+      showMessage("Error adding event: " + err.message, "error");
+    }
+  });
+
+  window.onload = loadCountries;
+</script>
+
+</body>
+</html>

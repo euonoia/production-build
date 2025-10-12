@@ -1,27 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <style>
-      .qr-canvas {
-        margin: 16px 0;
-        display: block;
-      }
-    </style>
+  <meta charset="UTF-8">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Dashboard</title>
+  <style>
+    .qr-canvas {
+      margin: 16px 0;
+      display: block;
+    }
+    #analytics {
+      margin: 20px 0;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      max-width: 400px;
+    }
+    #analytics h3 {
+      margin-top: 0;
+    }
+  </style>
 </head>
 <body>
   <h2 id="formTitle">Invite</h2>
-  <!-- Display selected user info here -->
+
+  <!-- Selected User Info -->
   <div id="selectedUserInfo" style="margin-bottom:10px; display:none;">
     <b>First Name:</b> <span id="displayFirstname"></span><br>
     <b>Last Name:</b> <span id="displayLastname"></span><br>
     <b>Email:</b> <span id="displayEmail"></span><br>
   </div>
-  <!-- Success/Error message -->
+
+  <!-- Message -->
   <div id="message" style="color: green; margin-bottom: 10px; display: none;"></div>
+
+  <!-- Form -->
   <form id="addUserForm">
     <input type="hidden" id="userId">
     <label>Invited: 
@@ -30,19 +44,29 @@
         <option value="false">No</option>
       </select>
     </label><br>
-    <button type="submit" id="submitBtn"></button>
+    <button type="submit" id="submitBtn">Add User</button>
     <button type="button" id="cancelBtn" style="display:none;">Cancel</button>
   </form>
 
+  <!-- Country Selector -->
   <label for="countrySelect"><b>Select Country:</b></label>
   <select id="countrySelect" style="margin-bottom: 16px;"></select>
+
+  <!-- Analytics Section -->
+  <div id="analytics">
+    <h3>📊 Analytics</h3>
+    <p><b>Registered Users:</b> <span id="registeredCount">0</span></p>
+    <p><b>Invited Users:</b> <span id="attendedCount">0</span></p>
+    <p><b>Invitation Rate:</b> <span id="attendanceRate">0%</span></p>
+  </div>
 
   <h2>All Users</h2>
   <div id="result"></div>
 
   <script>
     let editMode = false;
-    let COUNTRY = ""; // Global variable to store selected country
+    let COUNTRY = "";
+    const BASE_URL = "http://localhost:5001/fuze-be491/us-central1/v1";
 
     window.onload = function() {
       loadCountries();
@@ -58,12 +82,24 @@
       setTimeout(() => { messageDiv.style.display = 'none'; }, 2000);
     }
 
+    // 🔹 Compute analytics locally (no backend endpoint)
+    function computeAnalytics(users) {
+      const registered = users.length;
+      const invited = users.filter(u => u.invited === true).length;
+      const rate = registered === 0 ? "0%" : ((invited / registered) * 100).toFixed(1) + "%";
+      document.getElementById("registeredCount").innerText = registered;
+      document.getElementById("attendedCount").innerText = invited;
+      document.getElementById("attendanceRate").innerText = rate;
+    }
+
+    // 🔹 Fetch all users for a country
     async function fetchAllUsers() {
       if (!COUNTRY) {
         document.getElementById('result').innerText = "Please select a country.";
         return;
       }
-      const url = `http://localhost:5001/fuze-be491/us-central1/v1/list-users?country=${COUNTRY}`;
+
+      const url = `${BASE_URL}/list-users?country=${COUNTRY}`;
       try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -74,22 +110,26 @@
         const users = await response.json();
         if (users.length === 0) {
           document.getElementById('result').innerText = "No users found.";
+          computeAnalytics([]);
           return;
         }
+
         let output = "<ul>";
         users.forEach(user => {
-          output += `<li style="cursor:pointer; margin-bottom:32px;" onclick="selectUser('${user.userId}', '${user.firstName||""}', '${user.lastName||""}', '${user.email||""}')">
-            <b>${user.firstName||""} ${user.lastName||""}</b> (${user.email||""})<br>
-            User ID: ${user.userId}
-            <br>Invited: ${user.invited ? "Yes" : "No"}
-            <br>Country: ${user.country || "Unknown"}
-            <br><canvas id="qr_${user.userId}" class="qr-canvas"></canvas>
-          </li>`;
+          output += `
+            <li style="cursor:pointer; margin-bottom:32px;" 
+                onclick="selectUser('${user.userId}', '${user.firstName || ""}', '${user.lastName || ""}', '${user.email || ""}')">
+              <b>${user.firstName || ""} ${user.lastName || ""}</b> (${user.email || ""})<br>
+              User ID: ${user.userId}
+              <br>Invited: ${user.invited ? "Yes" : "No"}
+              <br>Country: ${COUNTRY}
+              <br><canvas id="qr_${user.userId}" class="qr-canvas"></canvas>
+            </li>`;
         });
         output += "</ul>";
         document.getElementById('result').innerHTML = output;
 
-        // Generate QR codes after rendering the user list
+        // Generate QR codes
         users.forEach(user => {
           const qrId = `qr_${user.userId}`;
           new QRious({
@@ -98,15 +138,18 @@
             size: 300
           });
         });
+
+        // Update analytics
+        computeAnalytics(users);
+
       } catch (error) {
         document.getElementById('result').innerText = `Error: ${error.message}`;
       }
     }
 
-    // Make selectUser globally accessible
+    // 🔹 Select a user for editing
     window.selectUser = function(userId, firstName, lastName, email) {
       document.getElementById('userId').value = userId;
-      // Display user info
       document.getElementById('displayFirstname').innerText = firstName || "";
       document.getElementById('displayLastname').innerText = lastName || "";
       document.getElementById('displayEmail').innerText = email || "";
@@ -127,20 +170,24 @@
       editMode = false;
     }
 
+    // 🔹 Add or update user
     async function addUser(event) {
       event.preventDefault();
       let userId = document.getElementById('userId').value;
       const invited = document.getElementById('invited').value === "true";
+
       if (!editMode || !userId) {
         userId = "user_" + Date.now();
       }
-      const url = "http://localhost:5001/fuze-be491/us-central1/v1/add-data";
+
+      const url = `${BASE_URL}/add-data`;
       try {
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ country: COUNTRY, userId, invited }) // <-- add country
+          body: JSON.stringify({ country: COUNTRY, userId, invited })
         });
+
         const text = await response.text();
         showMessage(text);
         fetchAllUsers();
@@ -150,13 +197,15 @@
       }
     }
 
+    // 🔹 Load available countries
     async function loadCountries() {
-      const url = `http://localhost:5001/fuze-be491/us-central1/v1/list-countries`;
+      const url = `${BASE_URL}/list-countries`;
       try {
         const response = await fetch(url);
         const countries = await response.json();
         const select = document.getElementById('countrySelect');
         select.innerHTML = "";
+
         countries.forEach(obj => {
           const country = obj.country;
           const opt = document.createElement('option');
@@ -164,11 +213,13 @@
           opt.text = country;
           select.appendChild(opt);
         });
+
         if (countries.length > 0) {
           COUNTRY = countries[0].country;
           select.value = COUNTRY;
           fetchAllUsers();
         }
+
         select.onchange = function() {
           COUNTRY = this.value;
           fetchAllUsers();

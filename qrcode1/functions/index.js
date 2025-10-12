@@ -172,7 +172,16 @@ app.get("/events/:country", async (req, res) => {
       .orderBy("startTime", "asc")
       .get();
 
-    const events = snapshot.docs.map(doc => ({ eventId: doc.id, ...doc.data() }));
+    const events = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        eventId: doc.id,
+        ...data,
+        startTime: data.startTime?.toDate ? data.startTime.toDate().toISOString() : data.startTime,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+      };
+    });
+
     res.json(events);
   } catch (err) {
     console.error("❌ Error fetching events:", err);

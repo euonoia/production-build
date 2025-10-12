@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard | Event Manager</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex">
+
+<!-- Sidebar -->
+<aside id="sidebar" class="w-64 bg-amber-700 text-white flex-shrink-0 min-h-screen transition-transform transform md:translate-x-0 -translate-x-full fixed md:static z-50">
+  <div class="p-6 border-b border-amber-600 flex justify-between items-center">
+    <h2 class="text-xl font-bold">Event Manager</h2>
+    <button id="closeSidebar" class="md:hidden text-white text-2xl">&times;</button>
+  </div>
+  <nav class="p-4 space-y-2">
+    <button data-page="analytics" class="block w-full text-left px-4 py-2 rounded hover:bg-amber-600 bg-amber-800 font-medium">📊 Dashboard</button>
+    <button data-page="manage_event" class="block w-full text-left px-4 py-2 rounded hover:bg-amber-600">📅 Manage Events</button>
+    <button data-page="users" class="block w-full text-left px-4 py-2 rounded hover:bg-amber-600">👥 Users</button>
+  </nav>
+</aside>
+
+<!-- Main Content -->
+<div class="flex-1 md:ml-64">
+  <header class="bg-white shadow p-4 flex justify-between items-center md:hidden sticky top-0 z-40">
+    <button id="openSidebar" class="text-amber-700 text-2xl">&#9776;</button>
+    <h1 class="text-lg font-bold text-amber-700">Event Manager</h1>
+  </header>
+
+  <main class="max-w-6xl mx-auto p-6">
+    <div id="page-container"></div>
+  </main>
+</div>
+
+<!-- Scripts -->
+<script src="js/sidebar.js" defer></script>
+<script src="js/pages.js" defer></script>
+<script src="js/analytics.js" defer></script>
+<script src="js/manageEvents.js" defer></script>
+<script>
+  renderPage("analytics"); // initial page load
+</script>
+</body>
+</html>

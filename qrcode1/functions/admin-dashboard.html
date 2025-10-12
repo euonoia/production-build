@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard | Event Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+  <div class="max-w-6xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6 text-amber-700">🎟 Event Admin Dashboard</h1>
+
+    <!-- Country Selector -->
+    <div class="mb-4">
+      <label class="block text-sm font-semibold mb-1">Select Country</label>
+      <select id="countrySelect" class="border p-2 rounded w-64">
+        <option value="">-- Select Country --</option>
+      </select>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-4 mb-6">
+      <button id="eventsTab" class="tab-btn bg-amber-600 text-white px-4 py-2 rounded">Events</button>
+      <button id="usersTab" class="tab-btn bg-gray-200 px-4 py-2 rounded">Users</button>
+    </div>
+
+    <!-- Events Section -->
+    <section id="eventsSection">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-2xl font-semibold">Events</h2>
+        <button id="addEventBtn" class="bg-amber-700 text-white px-4 py-2 rounded hover:bg-amber-800">+ Add Event</button>
+      </div>
+      <table class="min-w-full bg-white rounded shadow">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="text-left p-2">Title</th>
+            <th class="text-left p-2">Date</th>
+            <th class="text-left p-2">Created</th>
+          </tr>
+        </thead>
+        <tbody id="eventsTable"></tbody>
+      </table>
+    </section>
+
+    <!-- Users Section -->
+    <section id="usersSection" class="hidden">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-2xl font-semibold">Users</h2>
+        <div class="flex gap-2">
+          <select id="assignEventSelect" class="border p-2 rounded"></select>
+          <button id="assignEventBtn" class="bg-blue-600 text-white px-4 py-2 rounded">Assign Event</button>
+          <button id="sendInvitesBtn" class="bg-green-600 text-white px-4 py-2 rounded">Send Invites</button>
+        </div>
+      </div>
+      <table class="min-w-full bg-white rounded shadow">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="p-2"><input type="checkbox" id="selectAllUsers"></th>
+            <th class="text-left p-2">Name</th>
+            <th class="text-left p-2">Email</th>
+            <th class="text-left p-2">Event</th>
+            <th class="text-left p-2">Invited</th>
+            <th class="text-left p-2">Attendance</th>
+          </tr>
+        </thead>
+        <tbody id="usersTable"></tbody>
+      </table>
+    </section>
+
+    <!-- Add Event Modal -->
+    <div id="addEventModal" class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center">
+      <div class="bg-white rounded-lg shadow-lg p-6 w-96">
+        <h3 class="text-xl font-semibold mb-4">Add Event</h3>
+        <form id="addEventForm">
+          <input type="text" id="eventTitle" class="border p-2 w-full rounded mb-3" placeholder="Event title" required />
+          <input type="datetime-local" id="eventTime" class="border p-2 w-full rounded mb-3" required />
+          <div class="flex justify-end gap-2">
+            <button type="button" id="cancelAddEvent" class="px-4 py-2 bg-gray-300 rounded">Cancel</button>
+            <button type="submit" class="px-4 py-2 bg-amber-700 text-white rounded">Add</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+<script>
+const BASE_URL = "http://localhost:5001/fuze-be491/us-central1/v1";
+const countrySelect = document.getElementById("countrySelect");
+const eventsTable = document.getElementById("eventsTable");
+const usersTable = document.getElementById("usersTable");
+const assignEventSelect = document.getElementById("assignEventSelect");
+let selectedCountry = "";
+
+// ---------- INIT ----------
+document.addEventListener("DOMContentLoaded", () => {
+  loadCountries();
+
+  document.getElementById("addEventBtn").addEventListener("click", () => {
+    document.getElementById("addEventModal").classList.remove("hidden", "opacity-0");
+    document.getElementById("addEventModal").classList.add("flex");
+  });
+  document.getElementById("cancelAddEvent").addEventListener("click", closeModal);
+  document.getElementById("addEventForm").addEventListener("submit", addEvent);
+  document.getElementById("countrySelect").addEventListener("change", onCountryChange);
+  document.getElementById("eventsTab").addEventListener("click", () => showTab("events"));
+  document.getElementById("usersTab").addEventListener("click", () => showTab("users"));
+  document.getElementById("assignEventBtn").addEventListener("click", assignSelectedUsers);
+  document.getElementById("sendInvitesBtn").addEventListener("click", sendInvites);
+  document.getElementById("selectAllUsers").addEventListener("change", e => {
+    document.querySelectorAll(".userCheckbox").forEach(cb => cb.checked = e.target.checked);
+  });
+});
+
+// ---------- UI HELPERS ----------
+function showTab(tab) {
+  document.getElementById("eventsSection").classList.toggle("hidden", tab !== "events");
+  document.getElementById("usersSection").classList.toggle("hidden", tab !== "users");
+  document.getElementById("eventsTab").classList.toggle("bg-amber-600", tab === "events");
+  document.getElementById("eventsTab").classList.toggle("text-white", tab === "events");
+  document.getElementById("usersTab").classList.toggle("bg-amber-600", tab === "users");
+  document.getElementById("usersTab").classList.toggle("text-white", tab === "users");
+}
+
+function closeModal() {
+  document.getElementById("addEventModal").classList.add("hidden");
+  document.getElementById("addEventForm").reset();
+}
+
+async function loadCountries() {
+  try {
+    const res = await fetch(`${BASE_URL}/events`);
+    const countries = await res.json();
+    countries.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.country;
+      opt.textContent = c.country;
+      countrySelect.appendChild(opt);
+    });
+  } catch (err) {
+    console.error("Failed to load countries", err);
+  }
+}
+
+async function onCountryChange() {
+  selectedCountry = countrySelect.value;
+  if (!selectedCountry) return;
+  await loadEvents();
+  await loadUsers();
+}
+
+async function loadEvents() {
+  eventsTable.innerHTML = "";
+  try {
+    const res = await fetch(`${BASE_URL}/events/${selectedCountry}`);
+    const events = await res.json();
+    assignEventSelect.innerHTML = `<option value="">--Select Event--</option>`;
+    events.forEach(ev => {
+      assignEventSelect.innerHTML += `<option value="${ev.eventId}">${ev.title || ev.eventName}</option>`;
+      eventsTable.innerHTML += `
+        <tr class="border-b">
+          <td class="p-2">${ev.title || ev.eventName}</td>
+          <td class="p-2">${new Date(ev.startTime).toLocaleString()}</td>
+          <td class="p-2">${ev.createdAt ? new Date(ev.createdAt).toLocaleString() : '-'}</td>
+        </tr>`;
+    });
+  } catch (err) {
+    console.error("Failed to load events", err);
+  }
+}
+
+async function loadUsers() {
+  usersTable.innerHTML = "";
+  try {
+    const res = await fetch(`${BASE_URL}/users/${selectedCountry}`);
+    const users = await res.json();
+    users.forEach(u => {
+      usersTable.innerHTML += `
+        <tr class="border-b">
+          <td class="p-2"><input type="checkbox" class="userCheckbox" value="${u.userId}"></td>
+          <td class="p-2">${u.firstName || ""} ${u.lastName || ""}</td>
+          <td class="p-2">${u.email || "-"}</td>
+          <td class="p-2">${u.assignedEvent || "-"}</td>
+          <td class="p-2">${u.invited ? "✅" : "❌"}</td>
+          <td class="p-2">${u.attendanceStatus || "-"}</td>
+        </tr>`;
+    });
+  } catch (err) {
+    console.error("Failed to load users", err);
+  }
+}
+
+// ---------- ACTIONS ----------
+async function addEvent(e) {
+  e.preventDefault();
+  const title = document.getElementById("eventTitle").value;
+  const time = document.getElementById("eventTime").value;
+  if (!selectedCountry) return alert("Please select a country first.");
+
+  try {
+    const res = await fetch(`${BASE_URL}/events/${selectedCountry}`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ title, startTime: time })
+    });
+    if (!res.ok) throw new Error("Failed to add event");
+    alert("Event added successfully!");
+    closeModal();
+    loadEvents();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function assignSelectedUsers() {
+  const eventTitle = assignEventSelect.options[assignEventSelect.selectedIndex].text;
+  const userIds = Array.from(document.querySelectorAll(".userCheckbox:checked")).map(cb => cb.value);
+  if (!eventTitle || userIds.length === 0) return alert("Select event and users first");
+
+  try {
+    const res = await fetch(`${BASE_URL}/events/${selectedCountry}/assign`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ eventTitle, userIds })
+    });
+    if (!res.ok) throw new Error("Failed to assign users");
+    alert("Users assigned successfully!");
+    loadUsers();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function sendInvites() {
+  const userIds = Array.from(document.querySelectorAll(".userCheckbox:checked")).map(cb => cb.value);
+  if (userIds.length === 0) return alert("Select users first");
+  try {
+    const res = await fetch(`${BASE_URL}/users/${selectedCountry}/send-invite`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ userIds })
+    });
+    if (!res.ok) throw new Error("Failed to send invites");
+    alert("Invites sent successfully!");
+    loadUsers();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+</script>
+</body>
+</html>

@@ -38,83 +38,176 @@ function normalizeCountry(country) {
   return country.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
-// -------------------- ROUTES -------------------- //
-// GET a user
-app.get("/read-data", async (req, res) => {
-  const { country, userId } = req.query;
-  if (!country || !userId) return res.status(400).send("Missing country or userId");
+// -------------------- USER ROUTES -------------------- //
 
+// 🔹 GET user details
+app.get("/users/:country/:userId", async (req, res) => {
+  const { country, userId } = req.params;
   try {
-    const docRef = db.collection("events").doc(normalizeCountry(country)).collection("users").doc(userId);
-    const doc = await docRef.get();
+    const userRef = db.collection("events").doc(normalizeCountry(country)).collection("users").doc(userId);
+    const doc = await userRef.get();
     if (!doc.exists) return res.status(404).send("User not found");
-    res.json(doc.data());
+    res.json({ userId: doc.id, ...doc.data() });
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error fetching user:", err);
     res.status(500).send(err.message);
   }
 });
 
-// Add/update user
-app.post("/add-data", async (req, res) => {
-  const { country, userId, ...fields } = req.body;
-  if (!country || !userId) return res.status(400).send("Missing country or userId");
+// 🔹 Add or update user
+app.post("/users/:country", async (req, res) => {
+  const { country } = req.params;
+  const { userId, ...fields } = req.body;
+  if (!userId) return res.status(400).send("Missing userId");
 
   try {
-    const docRef = db.collection("events").doc(normalizeCountry(country)).collection("users").doc(userId);
-    await docRef.set({ ...fields, userId, invited: fields.invited ?? false, updatedAt: new Date() }, { merge: true });
-    res.status(201).send(`User ${userId} added/updated`);
+    const userRef = db.collection("events").doc(normalizeCountry(country)).collection("users").doc(userId);
+    await userRef.set({
+      ...fields,
+      userId,
+      updatedAt: new Date(),
+      invited: fields.invited ?? false,
+    }, { merge: true });
+
+    res.status(201).send(`User ${userId} added/updated for ${country}`);
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error saving user:", err);
     res.status(500).send(err.message);
   }
 });
 
-// List users
-app.get("/list-users", async (req, res) => {
-  const { country } = req.query;
-  if (!country) return res.status(400).send("Missing country");
-
+// 🔹 List all users for a country
+app.get("/users/:country", async (req, res) => {
+  const { country } = req.params;
   try {
     const snapshot = await db.collection("events").doc(normalizeCountry(country)).collection("users").get();
     const users = snapshot.docs.map(d => ({ userId: d.id, ...d.data() }));
     res.json(users);
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error fetching users:", err);
     res.status(500).send(err.message);
   }
 });
 
-// List countries
-app.get("/list-countries", async (_req, res) => {
+// 🔹 Send invite to users (updates invited + inviteSentAt)
+app.post("/users/:country/send-invite", async (req, res) => {
+  const { country } = req.params;
+  const { userIds } = req.body;
+
+  if (!Array.isArray(userIds) || userIds.length === 0)
+    return res.status(400).send("userIds array required");
+
+  try {
+    const batch = db.batch();
+    const normalized = normalizeCountry(country);
+
+    userIds.forEach(userId => {
+      const userRef = db.collection("events").doc(normalized).collection("users").doc(userId);
+      batch.update(userRef, {
+        invited: true,
+        inviteSentAt: new Date(),
+      });
+    });
+
+    await batch.commit();
+    res.send(`Invitations sent to ${userIds.length} users`);
+  } catch (err) {
+    console.error("❌ Error sending invites:", err);
+    res.status(500).send(err.message);
+  }
+});
+
+
+// -------------------- EVENT ROUTES -------------------- //
+
+// 🔹 List all countries
+app.get("/events", async (req, res) => {
   try {
     const snapshot = await db.collection("events").get();
-    res.json(snapshot.docs.map(d => ({ country: d.id })));
+    const countries = snapshot.docs.map(doc => ({
+      country: doc.id,
+    }));
+    res.json(countries);
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error fetching countries:", err);
     res.status(500).send(err.message);
   }
 });
 
-// Analytics
-app.get("/analytics", async (req, res) => {
-  const { country } = req.query;
-  if (!country) return res.status(400).send("Missing country");
+// 🔹 Add a new event
+app.post("/events/:country", async (req, res) => {
+  const { country } = req.params;
+  const { title, startTime } = req.body;
+  if (!title || !startTime) return res.status(400).send("Missing title or startTime");
 
   try {
-    const snapshot = await db.collection("events").doc(normalizeCountry(country)).collection("users").get();
-    let registered = 0, attended = 0;
-    snapshot.forEach(doc => {
-      registered++;
-      if (doc.data().attended) attended++;
-    });
-    const attendanceRate = registered ? ((attended / registered) * 100).toFixed(2) : "0.00";
-    res.json({ country: normalizeCountry(country), registered, attended, attendanceRate: `${attendanceRate}%` });
+    const normalized = normalizeCountry(country);
+    const eventsRef = db.collection("events").doc(normalized).collection("events");
+    const newEventRef = eventsRef.doc();
+
+    const eventData = {
+      eventId: newEventRef.id,
+      title,
+      startTime: new Date(startTime),
+      createdAt: new Date(),
+    };
+
+    await newEventRef.set(eventData);
+    res.status(201).json({ message: "Event created", data: eventData });
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error adding event:", err);
     res.status(500).send(err.message);
   }
 });
+
+// 🔹 List events for a country
+app.get("/events/:country", async (req, res) => {
+  const { country } = req.params;
+  try {
+    const normalized = normalizeCountry(country);
+    const snapshot = await db
+      .collection("events")
+      .doc(normalized)
+      .collection("events")
+      .orderBy("startTime", "asc")
+      .get();
+
+    const events = snapshot.docs.map(doc => ({ eventId: doc.id, ...doc.data() }));
+    res.json(events);
+  } catch (err) {
+    console.error("❌ Error fetching events:", err);
+    res.status(500).send(err.message);
+  }
+});
+
+// 🔹 Assign event to users
+app.post("/events/:country/assign", async (req, res) => {
+  const { country } = req.params;
+  const { eventTitle, userIds } = req.body;
+
+  if (!eventTitle || !Array.isArray(userIds))
+    return res.status(400).send("Missing eventTitle or userIds");
+
+  try {
+    const normalized = normalizeCountry(country);
+    const batch = db.batch();
+
+    userIds.forEach(userId => {
+      const userRef = db.collection("events").doc(normalized).collection("users").doc(userId);
+      batch.update(userRef, {
+        assignedEvent: eventTitle,
+        updatedAt: new Date(),
+      });
+    });
+
+    await batch.commit();
+    res.status(200).send(`Event "${eventTitle}" assigned to ${userIds.length} users`);
+  } catch (err) {
+    console.error("❌ Error assigning event:", err);
+    res.status(500).send(err.message);
+  }
+});
+
 
 // -------------------- EXPORT -------------------- //
 exports.v1 = functions.https.onRequest(app);

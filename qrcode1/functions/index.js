@@ -289,6 +289,112 @@ app.get("/analytics/events", async (req, res) => {
   }
 });
 
+// 🔹 GET all countries analytics (for world map)
+app.get("/analytics/countries", async (req, res) => {
+  try {
+    const eventsSnapshot = await db.collection("events").get();
+    const countriesData = [];
+
+    // Map country names (lowercase) → lat/lng
+    const countryLatLngMap = {
+      'united_states': { lat: 37.0902, lng: -95.7129 },
+      'canada': { lat: 56.1304, lng: -106.3468 },
+      'united_kingdom': { lat: 55.3781, lng: -3.4360 },
+      'australia': { lat: -25.2744, lng: 133.7751 },
+      'germany': { lat: 51.1657, lng: 10.4515 },
+      'france': { lat: 46.2276, lng: 2.2137 },
+      'india': { lat: 20.5937, lng: 78.9629 },
+      'philippines': { lat: 12.8797, lng: 121.774 },
+      'japan': { lat: 36.2048, lng: 138.2529 },
+      'south_korea': { lat: 35.9078, lng: 127.7669 },
+    };
+
+    for (const countryDoc of eventsSnapshot.docs) {
+      const countryId = countryDoc.id.toLowerCase(); // normalize
+
+      // Fetch users for the country
+      const usersSnap = await db.collection("events").doc(countryDoc.id).collection("users").get();
+      const invitedCount = usersSnap.docs.filter(d => d.data().invited).length;
+
+      // Fetch events for the country
+      const eventsSnap = await db.collection("events").doc(countryDoc.id).collection("events").get();
+
+      // Attach lat/lng from mapping, fallback to 0
+      const latLng = countryLatLngMap[countryId] || { lat: 0, lng: 0 };
+
+      countriesData.push({
+        country: countryDoc.id, // keep original casing
+        users: usersSnap.size,
+        invited: invitedCount,
+        notInvited: usersSnap.size - invitedCount,
+        events: eventsSnap.size,
+        lat: latLng.lat,
+        lng: latLng.lng
+      });
+    }
+
+    res.json(countriesData);
+  } catch (err) {
+    console.error("❌ Error fetching countries analytics:", err);
+    res.status(500).send(err.message);
+  }
+});
+
+// ---------------- GET all users ----------------
+app.get("/users", async (req, res) => {
+  try {
+    const usersSnap = await db.collection("users").get();
+    const users = usersSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    res.json(users);
+  } catch(err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
+// ---------------- PATCH user role ----------------
+app.patch("/users/:uid", async (req, res) => {
+  const { uid } = req.params;
+  const { role } = req.body;
+
+  if(!role || !["user", "admin"].includes(role)){
+    return res.status(400).json({ error: "Invalid role" });
+  }
+
+  try {
+    // Update Firestore
+    await db.collection("users").doc(uid).update({ role });
+
+    // Optionally, update Firebase Auth custom claims for role-based auth
+    await admin.auth().setCustomUserClaims(uid, { role });
+
+    res.json({ message: `Role updated to ${role}` });
+  } catch(err) {
+    console.error("Error updating user role:", err);
+    res.status(500).json({ error: "Failed to update role" });
+  }
+});
+
+// ---------------- DELETE user ----------------
+app.delete("/users/:uid", async (req, res) => {
+  const { uid } = req.params;
+
+  try {
+    // Delete from Firebase Auth
+    await admin.auth().deleteUser(uid);
+
+    // Delete from Firestore
+    await db.collection("users").doc(uid).delete();
+
+    res.json({ message: "User deleted successfully" });
+  } catch(err) {
+    console.error("Error deleting user:", err);
+    res.status(500).json({ error: "Failed to delete user" });
+  }
+});
+
 
 // -------------------- EXPORT -------------------- //
 exports.v1 = functions.https.onRequest(app);

@@ -8,6 +8,7 @@ import {
   Modal,
   FlatList,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import { auth, db } from '@/FirebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -27,71 +28,72 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const role = 'user';
-
   const [modalVisible, setModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [loading, setLoading] = useState(false); // 🟢 new loading state
 
- const handleRegister = async () => {
-  if (!firstName || !lastName || !email || !password || !country) {
-    alert('Please fill all required fields');
-    return;
-  }
+  const role = 'user';
 
-  try {
-    // 1️⃣ Create user in Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-
-    const now = new Date();
-
-    const userData = {
-      firstName,
-      lastName,
-      email,
-      contact,
-      country,
-      role,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    // 2️⃣ Store in main users collection
-    await setDoc(doc(db, 'users', user.uid), userData);
-
-    // 3️⃣ Ensure event country document exists
-    const normalizedCountry = country.toLowerCase().replace(/\s+/g, '_');
-    const countryDocRef = doc(db, 'events', normalizedCountry);
-    const countryDocSnap = await getDoc(countryDocRef);
-
-    if (!countryDocSnap.exists()) {
-      await setDoc(countryDocRef, {
-        createdAt: now,
-        updatedAt: now,
-      });
+  // 🟡 Main registration handler
+  const handleRegister = async () => {
+    if (!firstName || !lastName || !email || !password || !country) {
+      alert('Please fill all required fields');
+      return;
     }
 
-    // 5️⃣ Store user under /events/{country}/users with production-grade fields
-    await setDoc(doc(db, 'events', normalizedCountry, 'users', user.uid), {
-      ...userData,
-      invited: false, // Initially false; can be updated by admin
-      attendanceStatus: 'registered', // 'registered', 'checked_in', 'no_show'
-      inviteSentAt: null, // Set timestamp when invitation is sent
-      inviteAcceptedAt: null, // Set timestamp when user accepts invitation
-      checkedInAt: null, // Set timestamp when QR is scanned
-      eventTime: now, // When user registered for this event
-      userId: user.uid,
-      eventName: null,
-    });
+    try {
+      setLoading(true); // 🟢 show loader
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      const now = new Date();
 
-    alert('Registered successfully!');
-    router.replace('/(tabs)');
-  } catch (error: any) {
-    alert('Registration failed: ' + error.message);
-  }
-};
+      const userData = {
+        firstName,
+        lastName,
+        email,
+        contact,
+        country,
+        role,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      };
 
+      await setDoc(doc(db, 'users', user.uid), userData);
 
+      const normalizedCountry = country.toLowerCase().replace(/\s+/g, '_');
+      const countryDocRef = doc(db, 'events', normalizedCountry);
+      const countryDocSnap = await getDoc(countryDocRef);
+
+      if (!countryDocSnap.exists()) {
+        await setDoc(countryDocRef, {
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      await setDoc(doc(db, 'events', normalizedCountry, 'users', user.uid), {
+        ...userData,
+        invited: false,
+        attendanceStatus: 'registered',
+        inviteSentAt: null,
+        inviteAcceptedAt: null,
+        checkedInAt: null,
+        eventTime: now,
+        userId: user.uid,
+        assignedEvent: null,
+      });
+
+      alert('Registered successfully!');
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      alert('Registration failed: ' + error.message);
+    } finally {
+      setLoading(false); // 🟢 hide loader
+    }
+  };
+
+  // 🔍 Filter countries
   const filteredCountries = countriesList.filter(c =>
     c.toLowerCase().includes(searchText.toLowerCase())
   );
@@ -124,7 +126,7 @@ export default function Register() {
         style={styles.input}
       />
 
-      {/* Country picker */}
+      {/* 🌍 Country Picker */}
       <TouchableOpacity
         onPress={() => setModalVisible(true)}
         style={[styles.input, { justifyContent: 'center' }]}
@@ -152,7 +154,7 @@ export default function Register() {
         <Text style={styles.buttonText}>Register</Text>
       </TouchableOpacity>
 
-      {/* Country Modal */}
+      {/* 🌐 Country Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContainer}>
@@ -178,10 +180,21 @@ export default function Register() {
           </View>
         </View>
       </Modal>
+
+      {/* 🌀 Loading Modal */}
+      <Modal visible={loading} transparent animationType="fade">
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color="#007BFF" />
+            <Text style={styles.loadingText}>Processing...</Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
+// 🧩 Styles
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 16 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 24, textAlign: 'center' },
@@ -201,7 +214,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   buttonText: { color: '#fff', fontSize: 16 },
-
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -232,5 +244,23 @@ const styles = StyleSheet.create({
     marginTop: 8,
     alignItems: 'center',
     borderRadius: 6,
+  },
+  // 🌀 Loading modal styles
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingBox: {
+    backgroundColor: 'white',
+    padding: 24,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#333',
   },
 });

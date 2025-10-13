@@ -1,8 +1,16 @@
+
 function initAccountManagement() {
   const template = `
     <div class="mb-4 flex justify-between items-center">
       <h2 class="text-2xl font-semibold">Account Management</h2>
       <button id="refreshUsersBtn" class="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700">Refresh</button>
+    </div>
+
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+      <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
+        <div class="animate-spin rounded-full h-10 w-10 border-t-4 border-amber-600 border-solid mb-3"></div>
+        <p class="text-gray-700 font-medium">Loading...</p>
+      </div>
     </div>
 
     <table class="min-w-full bg-white rounded shadow">
@@ -11,7 +19,6 @@ function initAccountManagement() {
           <th class="p-2"><input type="checkbox" id="selectAllUsers"></th>
           <th class="text-left p-2">Name</th>
           <th class="text-left p-2">Email</th>
-          <th class="text-left p-2">Role</th>
           <th class="p-2">Actions</th>
         </tr>
       </thead>
@@ -21,18 +28,24 @@ function initAccountManagement() {
   document.getElementById("page-container").innerHTML = template;
 
   const usersTable = document.getElementById("usersTable");
+  const loadingOverlay = document.getElementById("loadingOverlay");
+
+  function showLoading(show = true) {
+    loadingOverlay.classList.toggle("hidden", !show);
+  }
 
   async function loadUsers() {
+    showLoading(true);
     try {
-      const token = await firebase.auth().currentUser.getIdToken();
-      const res = await fetch(`${BASE_URL}/users`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(`${BASE_URL}/users`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const users = await res.json();
       renderUsers(users);
     } catch (err) {
-      console.error(err);
+      console.error("❌ Failed to load users:", err);
       alert("Failed to load users");
+    } finally {
+      showLoading(false);
     }
   }
 
@@ -47,67 +60,40 @@ function initAccountManagement() {
         <td class="p-2">${u.firstName || ""} ${u.lastName || ""}</td>
         <td class="p-2">${u.email || "-"}</td>
         <td class="p-2">
-          <select data-uid="${u.id}" class="border px-2 py-1 rounded role-select">
-            <option value="user" ${u.role === "user" ? "selected" : ""}>User</option>
-            <option value="admin" ${u.role === "admin" ? "selected" : ""}>Admin</option>
-          </select>
-        </td>
-        <td class="p-2">
-          <button data-uid="${u.id}" class="delete-user bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">Delete</button>
+          <button data-uid="${u.id}" class="delete-user bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">
+            Delete
+          </button>
         </td>
       `;
       usersTable.appendChild(tr);
     });
 
-    // Attach events
-    document.querySelectorAll(".role-select").forEach(select => {
-      select.addEventListener("change", updateRole);
-    });
     document.querySelectorAll(".delete-user").forEach(btn => {
       btn.addEventListener("click", deleteUser);
     });
   }
 
-  async function updateRole(e) {
-    const uid = e.target.dataset.uid;
-    const newRole = e.target.value;
-    try {
-      const token = await firebase.auth().currentUser.getIdToken();
-      await fetch(`${BASE_URL}/users/${uid}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ role: newRole })
-      });
-      alert("Role updated successfully");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to update role");
-    }
-  }
-
   async function deleteUser(e) {
     const uid = e.target.dataset.uid;
     if (!confirm("Are you sure you want to delete this user?")) return;
+
+    showLoading(true);
     try {
-      const token = await firebase.auth().currentUser.getIdToken();
-      await fetch(`${BASE_URL}/users/${uid}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(`${BASE_URL}/users/${uid}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       alert("User deleted successfully");
       loadUsers();
     } catch (err) {
-      console.error(err);
+      console.error("❌ Failed to delete user:", err);
       alert("Failed to delete user");
+    } finally {
+      showLoading(false);
     }
   }
 
   // Select all checkbox
   document.getElementById("selectAllUsers").addEventListener("change", e => {
-    document.querySelectorAll(".userCheckbox").forEach(cb => cb.checked = e.target.checked);
+    document.querySelectorAll(".userCheckbox").forEach(cb => (cb.checked = e.target.checked));
   });
 
   // Refresh button
@@ -116,3 +102,4 @@ function initAccountManagement() {
   // Initial load
   loadUsers();
 }
+

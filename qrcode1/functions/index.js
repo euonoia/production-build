@@ -28,7 +28,12 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-app.use(cors({ origin: true }));
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
+
 app.use(express.json());
 
 console.log("✅ Express API initialized");
@@ -37,7 +42,6 @@ console.log("✅ Express API initialized");
 function normalizeCountry(country) {
   return country.trim().toLowerCase().replace(/\s+/g, "_");
 }
-
 // -------------------- USER ROUTES -------------------- //
 
 // 🔹 GET user details
@@ -346,34 +350,12 @@ app.get("/users", async (req, res) => {
     const usersSnap = await db.collection("users").get();
     const users = usersSnap.docs.map(doc => ({
       id: doc.id,
-      ...doc.data()
+      ...doc.data(),
     }));
     res.json(users);
-  } catch(err) {
-    console.error("Error fetching users:", err);
+  } catch (err) {
+    console.error("❌ Error fetching users:", err);
     res.status(500).json({ error: "Failed to fetch users" });
-  }
-});
-// ---------------- PATCH user role ----------------
-app.patch("/users/:uid", async (req, res) => {
-  const { uid } = req.params;
-  const { role } = req.body;
-
-  if(!role || !["user", "admin"].includes(role)){
-    return res.status(400).json({ error: "Invalid role" });
-  }
-
-  try {
-    // Update Firestore
-    await db.collection("users").doc(uid).update({ role });
-
-    // Optionally, update Firebase Auth custom claims for role-based auth
-    await admin.auth().setCustomUserClaims(uid, { role });
-
-    res.json({ message: `Role updated to ${role}` });
-  } catch(err) {
-    console.error("Error updating user role:", err);
-    res.status(500).json({ error: "Failed to update role" });
   }
 });
 
@@ -381,17 +363,64 @@ app.patch("/users/:uid", async (req, res) => {
 app.delete("/users/:uid", async (req, res) => {
   const { uid } = req.params;
 
+  // Helper: safely delete a single document
+  async function deleteSingleDoc(docRef) {
+    try {
+      const snap = await docRef.get();
+      if (snap.exists) {
+        await docRef.delete();
+        console.log(`✅ Deleted document at ${docRef.path}`);
+        return true;
+      } else {
+        console.warn(`⚠️ Document not found at ${docRef.path}`);
+        return false;
+      }
+    } catch (err) {
+      console.error(`❌ Error deleting document at ${docRef.path}:`, err);
+      return false;
+    }
+  }
+
   try {
-    // Delete from Firebase Auth
-    await admin.auth().deleteUser(uid);
+    // 1️⃣ Get user document
+    const userDocRef = db.collection("users").doc(uid);
+    const userDocSnap = await userDocRef.get();
 
-    // Delete from Firestore
-    await db.collection("users").doc(uid).delete();
+    if (!userDocSnap.exists) {
+      console.warn(`⚠️ User ${uid} not found in /users`);
+      return res.status(404).json({ error: "User not found" });
+    }
 
-    res.json({ message: "User deleted successfully" });
-  } catch(err) {
-    console.error("Error deleting user:", err);
-    res.status(500).json({ error: "Failed to delete user" });
+    const userData = userDocSnap.data();
+    const rawCountry = userData?.country;
+
+    if (!rawCountry) {
+      console.warn(`⚠️ User ${uid} has no country field, skipping event deletion`);
+    }
+
+    const country = rawCountry ? rawCountry.toLowerCase().replace(/\s+/g, "_") : null;
+
+    // 2️⃣ Delete from Firebase Auth (optional)
+    try {
+      await admin.auth().deleteUser(uid);
+      console.log(`✅ Deleted user ${uid} from Firebase Auth`);
+    } catch (e) {
+      console.warn(`⚠️ Could not delete user ${uid} from Auth:`, e.message);
+    }
+
+    // 3️⃣ Delete only this user in main /users collection
+    await deleteSingleDoc(userDocRef);
+
+    // 4️⃣ Delete only this user in /events/{country}/users/{uid}
+    if (country) {
+      const eventUserDocRef = db.collection("events").doc(country).collection("users").doc(uid);
+      await deleteSingleDoc(eventUserDocRef);
+    }
+
+    return res.json({ message: `User ${uid} deleted successfully` });
+  } catch (err) {
+    console.error("❌ Error deleting user:", err);
+    return res.status(500).json({ error: "Failed to delete user" });
   }
 });
 

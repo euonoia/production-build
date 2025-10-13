@@ -33,6 +33,7 @@ function initAccountManagement() {
     loadingOverlay.classList.toggle("hidden", !show);
   }
 
+  // ---------------- Load all users with disabled state from Firebase Auth ----------------
   async function loadUsers() {
     showLoading(true);
     try {
@@ -48,23 +49,23 @@ function initAccountManagement() {
     }
   }
 
+  // ---------------- Render users ----------------
   function renderUsers(users) {
     usersTable.innerHTML = "";
+
     users.forEach(u => {
-      const isDisabled = u.disabled || false; // ensure your API returns disabled
+      const isDisabled = u.disabled || false; // get from API
       const tr = document.createElement("tr");
       tr.classList.add("border-b");
-      if (isDisabled) tr.classList.add("opacity-50"); // gray out disabled users
+      if (isDisabled) tr.classList.add("opacity-50");
 
       tr.innerHTML = `
         <td class="p-2"><input type="checkbox" class="userCheckbox" value="${u.id}" ${isDisabled ? "disabled" : ""}></td>
         <td class="p-2">${u.firstName || ""} ${u.lastName || ""}</td>
         <td class="p-2">${u.email || "-"}</td>
         <td class="p-2 flex gap-2 items-center">
-          <button data-uid="${u.id}" class="delete-user bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">
-            Delete
-          </button>
-          <button data-uid="${u.id}" class="toggle-disable-user ${isDisabled ? "bg-green-600" : "bg-gray-600"} text-white px-3 py-1 rounded hover:bg-gray-700">
+          <button data-uid="${u.id}" class="delete-user bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">Delete</button>
+          <button data-uid="${u.id}" data-disabled="${isDisabled}" class="toggle-disable-user ${isDisabled ? "bg-green-600" : "bg-gray-600"} text-white px-3 py-1 rounded hover:bg-gray-700">
             ${isDisabled ? "Enable" : "Disable"}
           </button>
         </td>
@@ -72,15 +73,12 @@ function initAccountManagement() {
       usersTable.appendChild(tr);
     });
 
-    document.querySelectorAll(".delete-user").forEach(btn => {
-      btn.addEventListener("click", deleteUser);
-    });
-
-    document.querySelectorAll(".toggle-disable-user").forEach(btn => {
-      btn.addEventListener("click", toggleDisableUser);
-    });
+    // Attach event listeners
+    document.querySelectorAll(".delete-user").forEach(btn => btn.addEventListener("click", deleteUser));
+    document.querySelectorAll(".toggle-disable-user").forEach(btn => btn.addEventListener("click", toggleDisableUser));
   }
 
+  // ---------------- Delete user ----------------
   async function deleteUser(e) {
     const uid = e.target.dataset.uid;
     if (!confirm("Are you sure you want to delete this user?")) return;
@@ -99,38 +97,57 @@ function initAccountManagement() {
     }
   }
 
+  // ---------------- Toggle disable/enable ----------------
   async function toggleDisableUser(e) {
-    const uid = e.target.dataset.uid;
-    const enable = e.textContent === "Enable";
+    const btn = e.target;
+    const uid = btn.dataset.uid;
+    const isDisabled = btn.dataset.disabled === "true"; // current state
+    const disable = !isDisabled; // true = disable, false = enable
 
-    if (!confirm(`Are you sure you want to ${enable ? "enable" : "disable"} this user?`)) return;
+    if (!confirm(`Are you sure you want to ${disable ? "disable" : "enable"} this user?`)) return;
 
     showLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/users/${uid}/disable`, { 
+      const res = await fetch(`${BASE_URL}/users/${uid}/disable`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disable: !enable }) // send true to disable, false to enable
+        body: JSON.stringify({ disable })
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      alert(`User ${enable ? "enabled" : "disabled"} successfully`);
-      loadUsers();
+      const data = await res.json();
+
+      // Update UI immediately
+      const tr = btn.closest("tr");
+      if (disable) {
+        btn.textContent = "Enable";
+        btn.classList.replace("bg-gray-600", "bg-green-600");
+        tr.classList.add("opacity-50");
+        tr.querySelectorAll("input.userCheckbox").forEach(cb => cb.disabled = true);
+      } else {
+        btn.textContent = "Disable";
+        btn.classList.replace("bg-green-600", "bg-gray-600");
+        tr.classList.remove("opacity-50");
+        tr.querySelectorAll("input.userCheckbox").forEach(cb => cb.disabled = false);
+      }
+
+      btn.dataset.disabled = disable; // update state
+      alert(data.message);
     } catch (err) {
       console.error("❌ Failed to toggle user:", err);
-      alert(`Failed to ${enable ? "enable" : "disable"} user`);
+      alert(`Failed to ${disable ? "disable" : "enable"} user`);
     } finally {
       showLoading(false);
     }
   }
 
-  // Select all checkbox
+  // ---------------- Select all checkbox ----------------
   document.getElementById("selectAllUsers").addEventListener("change", e => {
     document.querySelectorAll(".userCheckbox").forEach(cb => (cb.checked = e.target.checked));
   });
 
-  // Refresh button
+  // ---------------- Refresh button ----------------
   document.getElementById("refreshUsersBtn").addEventListener("click", loadUsers);
 
-  // Initial load
+  // ---------------- Initial load ----------------
   loadUsers();
 }

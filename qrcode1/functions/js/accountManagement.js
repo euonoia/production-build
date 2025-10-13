@@ -1,4 +1,3 @@
-
 function initAccountManagement() {
   const template = `
     <div class="mb-4 flex justify-between items-center">
@@ -52,16 +51,21 @@ function initAccountManagement() {
   function renderUsers(users) {
     usersTable.innerHTML = "";
     users.forEach(u => {
+      const isDisabled = u.disabled || false; // ensure your API returns disabled
       const tr = document.createElement("tr");
       tr.classList.add("border-b");
+      if (isDisabled) tr.classList.add("opacity-50"); // gray out disabled users
 
       tr.innerHTML = `
-        <td class="p-2"><input type="checkbox" class="userCheckbox" value="${u.id}"></td>
+        <td class="p-2"><input type="checkbox" class="userCheckbox" value="${u.id}" ${isDisabled ? "disabled" : ""}></td>
         <td class="p-2">${u.firstName || ""} ${u.lastName || ""}</td>
         <td class="p-2">${u.email || "-"}</td>
-        <td class="p-2">
+        <td class="p-2 flex gap-2 items-center">
           <button data-uid="${u.id}" class="delete-user bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">
             Delete
+          </button>
+          <button data-uid="${u.id}" class="toggle-disable-user ${isDisabled ? "bg-green-600" : "bg-gray-600"} text-white px-3 py-1 rounded hover:bg-gray-700">
+            ${isDisabled ? "Enable" : "Disable"}
           </button>
         </td>
       `;
@@ -70,6 +74,10 @@ function initAccountManagement() {
 
     document.querySelectorAll(".delete-user").forEach(btn => {
       btn.addEventListener("click", deleteUser);
+    });
+
+    document.querySelectorAll(".toggle-disable-user").forEach(btn => {
+      btn.addEventListener("click", toggleDisableUser);
     });
   }
 
@@ -91,6 +99,30 @@ function initAccountManagement() {
     }
   }
 
+  async function toggleDisableUser(e) {
+    const uid = e.target.dataset.uid;
+    const enable = e.textContent === "Enable";
+
+    if (!confirm(`Are you sure you want to ${enable ? "enable" : "disable"} this user?`)) return;
+
+    showLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/users/${uid}/disable`, { 
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disable: !enable }) // send true to disable, false to enable
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      alert(`User ${enable ? "enabled" : "disabled"} successfully`);
+      loadUsers();
+    } catch (err) {
+      console.error("❌ Failed to toggle user:", err);
+      alert(`Failed to ${enable ? "enable" : "disable"} user`);
+    } finally {
+      showLoading(false);
+    }
+  }
+
   // Select all checkbox
   document.getElementById("selectAllUsers").addEventListener("change", e => {
     document.querySelectorAll(".userCheckbox").forEach(cb => (cb.checked = e.target.checked));
@@ -102,4 +134,3 @@ function initAccountManagement() {
   // Initial load
   loadUsers();
 }
-

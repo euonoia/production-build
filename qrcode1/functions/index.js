@@ -348,16 +348,36 @@ app.get("/analytics/countries", async (req, res) => {
 app.get("/users", async (req, res) => {
   try {
     const usersSnap = await db.collection("users").get();
-    const users = usersSnap.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+
+    const users = await Promise.all(
+      usersSnap.docs.map(async doc => {
+        const data = doc.data();
+        let disabled = false;
+
+        try {
+          const userRecord = await admin.auth().getUser(doc.id);
+          disabled = userRecord.disabled; // true if disabled in Firebase Auth
+        } catch (err) {
+          console.warn(`⚠️ Could not fetch Auth record for ${doc.id}:`, err.message);
+        }
+
+        return {
+          id: doc.id,
+          firstName: data.firstName || "",
+          lastName: data.lastName || "",
+          email: data.email || "-",
+          disabled, // this is new
+        };
+      })
+    );
+
     res.json(users);
   } catch (err) {
     console.error("❌ Error fetching users:", err);
     res.status(500).json({ error: "Failed to fetch users" });
   }
 });
+
 
 // ---------------- DELETE user ----------------
 app.delete("/users/:uid", async (req, res) => {
@@ -423,6 +443,31 @@ app.delete("/users/:uid", async (req, res) => {
     return res.status(500).json({ error: "Failed to delete user" });
   }
 });
+// ---------------- DISABLE user ----------------
+app.patch("/users/:uid/disable", async (req, res) => {
+  const { uid } = req.params;
+  const disable = req.body.disable !== undefined ? req.body.disable : true;
+
+  try {
+    // Update Firebase Auth
+    await admin.auth().updateUser(uid, { disabled: disable });
+    console.log(`✅ ${disable ? "Disabled" : "Enabled"} user ${uid} in Firebase Auth`);
+
+    // Update Firestore status
+    const userDocRef = db.collection("users").doc(uid);
+    const userDocSnap = await userDocRef.get();
+    if (userDocSnap.exists) {
+      await userDocRef.update({ status: disable ? "disabled" : "active", updatedAt: new Date() });
+      console.log(`✅ Updated user ${uid} status in Firestore`);
+    }
+
+    return res.json({ message: `User ${uid} ${disable ? "disabled" : "enabled"} successfully` });
+  } catch (err) {
+    console.error("❌ Error toggling user:", err);
+    return res.status(500).json({ error: `Failed to ${disable ? "disable" : "enable"} user` });
+  }
+});
+
 
 
 // -------------------- EXPORT -------------------- //

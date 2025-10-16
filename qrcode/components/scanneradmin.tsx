@@ -8,6 +8,10 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import QRCode from 'react-native-qrcode-svg';
 
+// ✅ Polyfill for Buffer in React Native (fixes "Buffer not found" in TS)
+import { Buffer } from 'buffer';
+global.Buffer = global.Buffer || Buffer;
+
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -21,6 +25,7 @@ export default function Scanner({ visible, onClose }: Props) {
     lastName: string;
     country: string;
     userId?: string;
+    assignedEvent?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -30,23 +35,25 @@ export default function Scanner({ visible, onClose }: Props) {
     })();
   }, []);
 
+  // ✅ Barcode handler
   const handleBarcodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
 
     try {
-      let scannedUserId = '';
-      let scannedCountry = '';
-
+      // ✅ decode base64 safely
+      let parsed: any;
       try {
-        const parsed = JSON.parse(data);
-        scannedUserId = parsed.userId;
-        scannedCountry = parsed.country;
+        const decoded = atob(data);
+        parsed = JSON.parse(decoded);
       } catch {
         Alert.alert('Invalid QR format', 'QR code must include userId and country.');
         setTimeout(() => setScanned(false), 1500);
         return;
       }
+
+      const scannedUserId = parsed.userId;
+      const scannedCountry = parsed.country;
 
       if (!scannedUserId || !scannedCountry) {
         Alert.alert('Missing data in QR code');
@@ -67,14 +74,20 @@ export default function Scanner({ visible, onClose }: Props) {
       const invited = eventData.invited ?? false;
       const firstName = eventData.firstName ?? 'Unknown';
       const lastName = eventData.lastName ?? '';
-      const country = scannedCountry ?? 'Unknown';
+      const assignedEvent = eventData.assignedEvent ?? 'N/A';
 
       if (invited) {
-        setInvitedUser({ firstName, lastName, country, userId: scannedUserId });
+        setInvitedUser({
+          firstName,
+          lastName,
+          country: scannedCountry,
+          userId: scannedUserId,
+          assignedEvent,
+        });
       } else {
         Alert.alert(
           '❌ Not Invited',
-          `Name: ${firstName} ${lastName}\nCountry: ${country}\nStatus: Not Invited`
+          `Name: ${firstName} ${lastName}\nCountry: ${scannedCountry}\nStatus: Not Invited`
         );
         setTimeout(() => setScanned(false), 1500);
       }
@@ -85,12 +98,19 @@ export default function Scanner({ visible, onClose }: Props) {
     }
   };
 
+  // ✅ Print or save to PDF
   const handlePrint = async (mode: 'print' | 'save') => {
     if (!invitedUser) return;
 
-    const { firstName, lastName, country, userId } = invitedUser;
+    const { firstName, lastName, country, userId, assignedEvent } = invitedUser;
+    const qrData = JSON.stringify({ userId, country, assignedEvent });
 
-    // 🎨 Modern ID Card Layout
+    // ✅ cross-platform base64
+    const qrEncoded =
+      typeof btoa !== 'undefined'
+        ? btoa(qrData)
+        : Buffer.from(qrData, 'utf-8').toString('base64');
+
     const html = `
       <html>
         <head>
@@ -105,7 +125,7 @@ export default function Scanner({ visible, onClose }: Props) {
             }
             .id-card {
               width: 340px;
-              height: 500px;
+              height: 520px;
               background: white;
               border-radius: 20px;
               box-shadow: 0 0 12px rgba(0,0,0,0.2);
@@ -122,7 +142,7 @@ export default function Scanner({ visible, onClose }: Props) {
               font-weight: bold;
             }
             .name {
-              font-size: 28px;
+              font-size: 26px;
               font-weight: bold;
               color: #222;
               margin: 10px 0;
@@ -130,13 +150,19 @@ export default function Scanner({ visible, onClose }: Props) {
             .country {
               font-size: 18px;
               color: #555;
-              margin-bottom: 20px;
+              margin-bottom: 10px;
+            }
+            .event {
+              font-size: 16px;
+              color: #1b5e20;
+              margin-bottom: 16px;
+              font-weight: bold;
             }
             .status {
               font-size: 16px;
               color: #2e7d32;
               font-weight: bold;
-              margin-bottom: 20px;
+              margin-bottom: 16px;
             }
             img {
               margin-top: 15px;
@@ -151,9 +177,10 @@ export default function Scanner({ visible, onClose }: Props) {
             <div class="header">🎟️ Event Access Pass</div>
             <div class="name">${firstName} ${lastName}</div>
             <div class="country">${country.toUpperCase()}</div>
+            <div class="event">Event: ${assignedEvent}</div>
             <div class="status">✅ INVITED GUEST</div>
             <p>User ID: ${userId}</p>
-            <img src="https://api.qrserver.com/v1/create-qr-code/?data=${userId}&size=150x150" />
+            <img src="https://api.qrserver.com/v1/create-qr-code/?data=${qrEncoded}&size=150x150" />
           </div>
         </body>
       </html>
@@ -170,7 +197,7 @@ export default function Scanner({ visible, onClose }: Props) {
     setScanned(false);
   };
 
-  // --- CAMERA PERMISSION STATES ---
+  // ✅ Camera permission states
   if (hasPermission === null) {
     return (
       <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -209,16 +236,23 @@ export default function Scanner({ visible, onClose }: Props) {
             {scanned && <Button title="Tap to Scan Again" onPress={() => setScanned(false)} />}
           </>
         ) : (
-          // ✅ Invited Guest Modal
           <View style={styles.invitedModal}>
             <Text style={styles.invitedTitle}>✅ Invited Guest</Text>
             <Text style={styles.invitedText}>
               Name: {invitedUser.firstName} {invitedUser.lastName}
             </Text>
             <Text style={styles.invitedText}>Country: {invitedUser.country}</Text>
+            <Text style={styles.invitedText}>Event: {invitedUser.assignedEvent}</Text>
 
             <View style={{ marginVertical: 16 }}>
-              <QRCode value={invitedUser.userId || ''} size={100} />
+              <QRCode
+                value={JSON.stringify({
+                  userId: invitedUser.userId,
+                  country: invitedUser.country,
+                  assignedEvent: invitedUser.assignedEvent,
+                })}
+                size={100}
+              />
             </View>
 
             <View style={styles.buttonRow}>

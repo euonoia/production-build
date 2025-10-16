@@ -4,6 +4,11 @@ import { auth, db } from '../../FirebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import QRCode from 'react-native-qrcode-svg';
 
+// ✅ Safe Base64 encoder (no Node.js Buffer needed)
+const encodeToBase64 = (text: string) => {
+  return global.btoa(unescape(encodeURIComponent(text)));
+};
+
 export default function AddQr() {
   const [info, setInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -85,24 +90,41 @@ export default function AddQr() {
     );
   }
 
-  // Prepare QR data as a string with only the required fields, including userId
-  const qrData = JSON.stringify({
+  // ✅ Prepare and encode QR data safely
+  const rawQrData = JSON.stringify({
     userId: auth.currentUser?.uid || '',
     firstName: info.firstName || '',
     lastName: info.lastName || '',
     email: info.email || '',
     contact: info.contact || '',
-    country: info.country || '', 
+    country: info.country || '',
   });
+
+  const qrData = encodeToBase64(rawQrData); // base64 encoded text
 
   return (
     <View style={styles.center}>
       <Text style={styles.title}>Your Information QR</Text>
+
+      {/* ✅ Stable base64 QR (prints/scans perfectly) */}
       <QRCode value={qrData} size={220} />
-      <Text style={styles.infoText}>{qrData}</Text>
-      <Text style={{ marginTop: 10, fontWeight: 'bold' }}>User ID: {auth.currentUser?.uid}</Text>
-      
-      {/* Event invitation status */}
+
+      {/* ✅ Show readable info */}
+      <View style={{ marginTop: 20 }}>
+        <Text style={styles.nameText}>
+          👤 {info.firstName} {info.lastName}
+        </Text>
+        <Text style={styles.detailText}>📧 {info.email}</Text>
+        <Text style={styles.detailText}>📱 {info.contact}</Text>
+        <Text style={styles.detailText}>🌍 {info.country}</Text>
+      </View>
+
+      {/* ✅ Invitation status */}
+      <Text style={styles.status}>{eventStatus}</Text>
+
+      <Text style={{ marginTop: 10, fontWeight: 'bold' }}>
+        User ID: {auth.currentUser?.uid}
+      </Text>
     </View>
   );
 }
@@ -119,10 +141,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
   },
-  infoText: {
-    marginTop: 20,
-    fontSize: 12,
-    color: '#555',
+  nameText: {
+    fontSize: 18,
+    fontWeight: '600',
     textAlign: 'center',
+  },
+  detailText: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#555',
+  },
+  status: {
+    marginTop: 20,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

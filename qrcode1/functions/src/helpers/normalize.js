@@ -1,4 +1,8 @@
 function normalizeCountry(country) {
-  return country.trim().toLowerCase().replace(/\s+/g, "_");
+  return country
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .trim();
 }
+
 module.exports = { normalizeCountry };

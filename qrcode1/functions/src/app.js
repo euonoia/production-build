@@ -7,6 +7,7 @@ const userRoutes = require("./routes/users.routes");
 const eventRoutes = require("./routes/events.routes");
 const analyticsRoutes = require("./routes/analytics.routes");
 const adminRoutes = require("./routes/admin.routes");
+const eventOrganizerRoutes = require("./routes/eventOrganizer.routes");
 
 // Initialize Express
 const app = express();
@@ -30,6 +31,7 @@ app.use("/users", userRoutes);
 app.use("/events", eventRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/admin", adminRoutes);
+app.use("/eventOrganizer", eventOrganizerRoutes);
 
 console.log("✅ Express API initialized");
 

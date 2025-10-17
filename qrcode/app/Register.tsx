@@ -82,6 +82,7 @@ export default function Register() {
         eventTime: now,
         userId: user.uid,
         assignedEvent: null,
+        qrcodePrinted:  null,
       });
 
       alert('Registered successfully!');

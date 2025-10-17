@@ -50,6 +50,19 @@ const pages = {
     <h2 class="text-2xl font-bold text-amber-700 mb-4">Event Management</h2>
     <p class="text-gray-500">No events available. Click "Add Event" to create one.</p>
   `,
+  event_organizer: `
+    <h2 class="text-2xl font-bold text-amber-700 mb-4">Event Organizer</h2>
+    <div class="mb-4 flex items-center gap-4">
+      <select id="countrySelect" class="border p-2 rounded">
+        <option value="">Select Country</option>
+      </select>
+      <select id="eventSelect" class="border p-2 rounded">
+        <option value="">Select Event</option>
+      </select>
+      <button id="loadUsersBtn" class="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700">Load Users</button>
+    </div>
+    <div id="usersContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+  `,
   users: `
     <h2 class="text-2xl font-bold text-amber-700 mb-4">Account Management</h2>
     <div class="mb-4 flex justify-between items-center">
@@ -87,6 +100,11 @@ function renderPage(name) {
     case "manage_event":
       container.innerHTML = pages.manage_event;
       initManageEvents?.();
+      break;
+      
+    case "event_organizer":
+      container.innerHTML = pages.event_organizer;
+      initEventOrganizer?.();
       break;
 
     case "users":
@@ -195,6 +213,11 @@ function initAccountManagement() {
 
   // Initial load
   loadUsers();
+}
+// ---------------- Event Organizer ----------------
+function initEventOrganizer() {
+  // Initialize your organizer page logic here
+  console.log("Event Organizer page loaded");
 }
 
 // ---------------- Load initial page safely ----------------

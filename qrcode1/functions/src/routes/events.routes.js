@@ -18,21 +18,28 @@ router.get("/", async (req, res) => {
 // 🔹 POST create new event under country
 router.post("/:country", async (req, res) => {
   const { country } = req.params;
-  const { title, startTime } = req.body;
+  const { title, startTime, endTime } = req.body; // Added endTime
   const db = req.db;
 
-  if (!title || !startTime)
-    return res.status(400).send("Missing title or startTime");
+  if (!title || !startTime || !endTime)
+    return res.status(400).send("Missing title, startTime or endTime");
+
+  if (new Date(endTime) < new Date(startTime))
+    return res.status(400).send("endTime must be after startTime");
 
   try {
     const normalized = normalizeCountry(country);
-    const newEventRef = db.collection("events").doc(normalized)
-      .collection("events").doc();
+    const newEventRef = db
+      .collection("events")
+      .doc(normalized)
+      .collection("events")
+      .doc();
 
     const eventData = {
       eventId: newEventRef.id,
       title,
       startTime: new Date(startTime),
+      endTime: new Date(endTime), // store endTime
       createdAt: new Date(),
     };
 
@@ -51,7 +58,8 @@ router.get("/:country", async (req, res) => {
 
   try {
     const normalized = normalizeCountry(country);
-    const snapshot = await db.collection("events")
+    const snapshot = await db
+      .collection("events")
       .doc(normalized)
       .collection("events")
       .orderBy("startTime", "asc")
@@ -63,6 +71,7 @@ router.get("/:country", async (req, res) => {
         eventId: doc.id,
         ...data,
         startTime: data.startTime?.toDate?.().toISOString() ?? data.startTime,
+        endTime: data.endTime?.toDate?.().toISOString() ?? data.endTime, // return endTime
       };
     });
 
@@ -76,18 +85,30 @@ router.get("/:country", async (req, res) => {
 // 🔹 Assign event to multiple users
 router.post("/:country/assign", async (req, res) => {
   const { country } = req.params;
-  const { eventTitle, userIds } = req.body;
+  const { eventId, userIds } = req.body; // changed from eventTitle to eventId
   const db = req.db;
 
-  if (!eventTitle || !Array.isArray(userIds))
-    return res.status(400).send("Missing eventTitle or userIds");
+  if (!eventId || !Array.isArray(userIds))
+    return res.status(400).send("Missing eventId or userIds");
 
   try {
     const normalized = normalizeCountry(country);
+    const eventRef = db
+      .collection("events")
+      .doc(normalized)
+      .collection("events")
+      .doc(eventId);
+
+    const eventDoc = await eventRef.get();
+    if (!eventDoc.exists)
+      return res.status(404).send("Event not found");
+
+    const eventTitle = eventDoc.data().title;
     const batch = db.batch();
 
     userIds.forEach((userId) => {
-      const userRef = db.collection("events")
+      const userRef = db
+        .collection("events")
         .doc(normalized)
         .collection("users")
         .doc(userId);

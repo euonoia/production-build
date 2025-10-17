@@ -1,4 +1,4 @@
-function initManageEvents(){
+function initManageEvents() {
   const template = `
     <div class="mb-4">
       <label class="block text-sm font-semibold mb-1">Select Country</label>
@@ -21,7 +21,8 @@ function initManageEvents(){
         <thead class="bg-gray-100">
           <tr>
             <th class="text-left p-2">Title</th>
-            <th class="text-left p-2">Date</th>
+            <th class="text-left p-2">Start</th>
+            <th class="text-left p-2">End</th>
             <th class="text-left p-2">Created</th>
           </tr>
         </thead>
@@ -33,7 +34,9 @@ function initManageEvents(){
       <div class="flex justify-between items-center mb-3">
         <h2 class="text-2xl font-semibold">Users</h2>
         <div class="flex gap-2">
-          <select id="assignEventSelect" class="border p-2 rounded"></select>
+          <select id="assignEventSelect" class="border p-2 rounded">
+            <option value="">--Select Event--</option>
+          </select>
           <button id="assignEventBtn" class="bg-blue-600 text-white px-4 py-2 rounded">Assign Event</button>
           <button id="sendInvitesBtn" class="bg-green-600 text-white px-4 py-2 rounded">Send Invites</button>
         </div>
@@ -58,7 +61,10 @@ function initManageEvents(){
         <h3 class="text-xl font-semibold mb-4">Add Event</h3>
         <form id="addEventForm">
           <input type="text" id="eventTitle" class="border p-2 w-full rounded mb-3" placeholder="Event title" required />
-          <input type="datetime-local" id="eventTime" class="border p-2 w-full rounded mb-3" required />
+          <label class="block mb-1 font-medium">Start Time</label>
+          <input type="datetime-local" id="eventStartTime" class="border p-2 w-full rounded mb-3" required />
+          <label class="block mb-1 font-medium">End Time</label>
+          <input type="datetime-local" id="eventEndTime" class="border p-2 w-full rounded mb-3" required />
           <div class="flex justify-end gap-2">
             <button type="button" id="cancelAddEvent" class="px-4 py-2 bg-gray-300 rounded">Cancel</button>
             <button type="submit" class="px-4 py-2 bg-amber-700 text-white rounded">Add</button>
@@ -67,7 +73,7 @@ function initManageEvents(){
       </div>
     </div>
   `;
-  
+
   document.getElementById("page-container").innerHTML = template;
 
   const countrySelect = document.getElementById("countrySelect");
@@ -78,113 +84,150 @@ function initManageEvents(){
   let selectedCountry = "";
 
   // Tabs
-  document.getElementById("eventsTab").addEventListener("click", ()=>showTab("events"));
-  document.getElementById("usersTab").addEventListener("click", ()=>showTab("users"));
+  document.getElementById("eventsTab").addEventListener("click", () => showTab("events"));
+  document.getElementById("usersTab").addEventListener("click", () => showTab("users"));
 
-  function showTab(tab){
-    document.getElementById("eventsSection").classList.toggle("hidden", tab!=="events");
-    document.getElementById("usersSection").classList.toggle("hidden", tab!=="users");
-    document.getElementById("eventsTab").classList.toggle("bg-amber-600", tab==="events");
-    document.getElementById("eventsTab").classList.toggle("text-white", tab==="events");
-    document.getElementById("usersTab").classList.toggle("bg-amber-600", tab==="users");
-    document.getElementById("usersTab").classList.toggle("text-white", tab==="users");
+  function showTab(tab) {
+    document.getElementById("eventsSection").classList.toggle("hidden", tab !== "events");
+    document.getElementById("usersSection").classList.toggle("hidden", tab !== "users");
+    document.getElementById("eventsTab").classList.toggle("bg-amber-600", tab === "events");
+    document.getElementById("eventsTab").classList.toggle("text-white", tab === "events");
+    document.getElementById("usersTab").classList.toggle("bg-amber-600", tab === "users");
+    document.getElementById("usersTab").classList.toggle("text-white", tab === "users");
   }
 
   // Load countries
-  fetch(`${BASE_URL}/events`).then(res=>res.json()).then(countries=>{
-    countries.forEach(c=>{
-      const opt = document.createElement("option");
-      opt.value=c.country; opt.textContent=c.country;
-      countrySelect.appendChild(opt);
+  fetch(`${BASE_URL}/events`)
+    .then(res => res.json())
+    .then(countries => {
+      countries.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.country;
+        opt.textContent = c.country;
+        countrySelect.appendChild(opt);
+      });
     });
-  });
 
-  countrySelect.addEventListener("change", async ()=>{
+  countrySelect.addEventListener("change", async () => {
     selectedCountry = countrySelect.value;
-    if(!selectedCountry) return;
+    if (!selectedCountry) return;
     await loadEvents();
     await loadUsers();
   });
 
-  async function loadEvents(){
-    eventsTable.innerHTML=""; assignEventSelect.innerHTML=`<option value="">--Select Event--</option>`;
-    try{
+  async function loadEvents() {
+    eventsTable.innerHTML = "";
+    assignEventSelect.innerHTML = `<option value="">--Select Event--</option>`;
+    try {
       const res = await fetch(`${BASE_URL}/events/${selectedCountry}`);
       const events = await res.json();
-      events.forEach(ev=>{
-        assignEventSelect.innerHTML+=`<option value="${ev.eventId}">${ev.title||ev.eventName}</option>`;
-        eventsTable.innerHTML+=`<tr class="border-b">
-          <td class="p-2">${ev.title||ev.eventName}</td>
-          <td class="p-2">${new Date(ev.startTime).toLocaleString()}</td>
-          <td class="p-2">${ev.createdAt?new Date(ev.createdAt).toLocaleString():'-'}</td>
+      events.forEach(ev => {
+        const start = new Date(ev.startTime).toLocaleString();
+        const end = new Date(ev.endTime).toLocaleString();
+        assignEventSelect.innerHTML += `<option value="${ev.eventId}">${ev.title} (${start} - ${end})</option>`;
+        eventsTable.innerHTML += `<tr class="border-b">
+          <td class="p-2">${ev.title}</td>
+          <td class="p-2">${start}</td>
+          <td class="p-2">${end}</td>
+          <td class="p-2">${ev.createdAt ? new Date(ev.createdAt).toLocaleString() : '-'}</td>
         </tr>`;
       });
-    }catch(err){ console.error(err); }
+    } catch (err) {
+      console.error(err);
+      eventsTable.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">Failed to load events.</td></tr>`;
+    }
   }
 
-  async function loadUsers(){
-    usersTable.innerHTML="";
-    try{
+  async function loadUsers() {
+    usersTable.innerHTML = "";
+    try {
       const res = await fetch(`${BASE_URL}/users/${selectedCountry}`);
       const users = await res.json();
-      users.forEach(u=>{
-        usersTable.innerHTML+=`<tr class="border-b">
+      users.forEach(u => {
+        usersTable.innerHTML += `<tr class="border-b">
           <td class="p-2"><input type="checkbox" class="userCheckbox" value="${u.userId}"></td>
-          <td class="p-2">${u.firstName||""} ${u.lastName||""}</td>
-          <td class="p-2">${u.email||"-"}</td>
-          <td class="p-2">${u.assignedEvent||"-"}</td>
-          <td class="p-2">${u.invited?"✅":"❌"}</td>
-          <td class="p-2">${u.attendanceStatus||"-"}</td>
+          <td class="p-2">${u.firstName || ""} ${u.lastName || ""}</td>
+          <td class="p-2">${u.email || "-"}</td>
+          <td class="p-2">${u.assignedEvent || "-"}</td>
+          <td class="p-2">${u.invited ? "✅" : "❌"}</td>
+          <td class="p-2">${u.attendanceStatus || "-"}</td>
         </tr>`;
       });
-    }catch(err){ console.error(err); }
+    } catch (err) {
+      console.error(err);
+      usersTable.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">Failed to load users.</td></tr>`;
+    }
   }
 
   // Modal & buttons
-  document.getElementById("addEventBtn").addEventListener("click", ()=>{ addEventModal.classList.remove("hidden"); addEventModal.classList.add("flex"); });
-  document.getElementById("cancelAddEvent").addEventListener("click", ()=>{ addEventModal.classList.add("hidden"); document.getElementById("addEventForm").reset(); });
+  document.getElementById("addEventBtn").addEventListener("click", () => {
+    addEventModal.classList.remove("hidden");
+    addEventModal.classList.add("flex");
+  });
+  document.getElementById("cancelAddEvent").addEventListener("click", () => {
+    addEventModal.classList.add("hidden");
+    document.getElementById("addEventForm").reset();
+  });
 
-  document.getElementById("addEventForm").addEventListener("submit", async (e)=>{
+  document.getElementById("addEventForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const title = document.getElementById("eventTitle").value;
-    const time = document.getElementById("eventTime").value;
-    if(!selectedCountry) return alert("Please select a country first.");
-    try{
+    const startTime = document.getElementById("eventStartTime").value;
+    const endTime = document.getElementById("eventEndTime").value;
+
+    if (!selectedCountry) return alert("Please select a country first.");
+    try {
       const res = await fetch(`${BASE_URL}/events/${selectedCountry}`, {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title,startTime:time})
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, startTime, endTime })
       });
-      if(!res.ok) throw new Error("Failed to add event");
-      alert("Event added!"); addEventModal.classList.add("hidden"); document.getElementById("addEventForm").reset();
+      if (!res.ok) throw new Error("Failed to add event");
+      alert("Event added!");
+      addEventModal.classList.add("hidden");
+      document.getElementById("addEventForm").reset();
       loadEvents();
-    }catch(err){ alert(err.message); }
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
-  document.getElementById("assignEventBtn").addEventListener("click", async ()=>{
-    const eventTitle = assignEventSelect.options[assignEventSelect.selectedIndex].text;
-    const userIds = Array.from(document.querySelectorAll(".userCheckbox:checked")).map(cb=>cb.value);
-    if(!eventTitle||userIds.length===0) return alert("Select event and users first");
-    try{
+  document.getElementById("assignEventBtn").addEventListener("click", async () => {
+    const eventId = assignEventSelect.value;
+    const userIds = Array.from(document.querySelectorAll(".userCheckbox:checked")).map(cb => cb.value);
+    if (!eventId || userIds.length === 0) return alert("Select event and users first");
+    try {
       const res = await fetch(`${BASE_URL}/events/${selectedCountry}/assign`, {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({eventTitle,userIds})
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, userIds })
       });
-      if(!res.ok) throw new Error("Failed to assign users");
-      alert("Users assigned successfully!"); loadUsers();
-    }catch(err){ alert(err.message); }
+      if (!res.ok) throw new Error("Failed to assign users");
+      alert("Users assigned successfully!");
+      loadUsers();
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
-  document.getElementById("sendInvitesBtn").addEventListener("click", async ()=>{
-    const userIds = Array.from(document.querySelectorAll(".userCheckbox:checked")).map(cb=>cb.value);
-    if(userIds.length===0) return alert("Select users first");
-    try{
+  document.getElementById("sendInvitesBtn").addEventListener("click", async () => {
+    const userIds = Array.from(document.querySelectorAll(".userCheckbox:checked")).map(cb => cb.value);
+    if (userIds.length === 0) return alert("Select users first");
+    try {
       const res = await fetch(`${BASE_URL}/users/${selectedCountry}/send-invite`, {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({userIds})
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds })
       });
-      if(!res.ok) throw new Error("Failed to send invites");
-      alert("Invites sent!"); loadUsers();
-    }catch(err){ alert(err.message); }
+      if (!res.ok) throw new Error("Failed to send invites");
+      alert("Invites sent!");
+      loadUsers();
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
-  document.getElementById("selectAllUsers").addEventListener("change", e=>{
-    document.querySelectorAll(".userCheckbox").forEach(cb=>cb.checked=e.target.checked);
+  document.getElementById("selectAllUsers").addEventListener("change", e => {
+    document.querySelectorAll(".userCheckbox").forEach(cb => cb.checked = e.target.checked);
   });
 }

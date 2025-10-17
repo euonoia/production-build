@@ -33,11 +33,11 @@ function initAccountManagement() {
     loadingOverlay.classList.toggle("hidden", !show);
   }
 
-  // ---------------- Load all users with disabled state from Firebase Auth ----------------
+  // ---------------- Load all users (with Firebase Auth status) ----------------
   async function loadUsers() {
     showLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/users`);
+      const res = await fetch(`${BASE_URL}/admin/users`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const users = await res.json();
       renderUsers(users);
@@ -54,7 +54,7 @@ function initAccountManagement() {
     usersTable.innerHTML = "";
 
     users.forEach(u => {
-      const isDisabled = u.disabled || false; // get from API
+      const isDisabled = u.disabled || false;
       const tr = document.createElement("tr");
       tr.classList.add("border-b");
       if (isDisabled) tr.classList.add("opacity-50");
@@ -73,19 +73,18 @@ function initAccountManagement() {
       usersTable.appendChild(tr);
     });
 
-    // Attach event listeners
     document.querySelectorAll(".delete-user").forEach(btn => btn.addEventListener("click", deleteUser));
     document.querySelectorAll(".toggle-disable-user").forEach(btn => btn.addEventListener("click", toggleDisableUser));
   }
 
-  // ---------------- Delete user ----------------
+  // ---------------- Delete user (call /admin/users/:uid) ----------------
   async function deleteUser(e) {
     const uid = e.target.dataset.uid;
     if (!confirm("Are you sure you want to delete this user?")) return;
 
     showLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/users/${uid}`, { method: "DELETE" });
+      const res = await fetch(`${BASE_URL}/admin/users/${uid}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       alert("User deleted successfully");
       loadUsers();
@@ -97,26 +96,27 @@ function initAccountManagement() {
     }
   }
 
-  // ---------------- Toggle disable/enable ----------------
+  // ---------------- Toggle disable/enable user (call /admin/users/:uid/disable) ----------------
   async function toggleDisableUser(e) {
     const btn = e.target;
     const uid = btn.dataset.uid;
-    const isDisabled = btn.dataset.disabled === "true"; // current state
-    const disable = !isDisabled; // true = disable, false = enable
+    const isDisabled = btn.dataset.disabled === "true";
+    const disable = !isDisabled;
 
     if (!confirm(`Are you sure you want to ${disable ? "disable" : "enable"} this user?`)) return;
 
     showLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/users/${uid}/disable`, {
+      const res = await fetch(`${BASE_URL}/admin/users/${uid}/disable`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ disable })
       });
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      // Update UI immediately
+      // Update UI
       const tr = btn.closest("tr");
       if (disable) {
         btn.textContent = "Enable";
@@ -130,7 +130,7 @@ function initAccountManagement() {
         tr.querySelectorAll("input.userCheckbox").forEach(cb => cb.disabled = false);
       }
 
-      btn.dataset.disabled = disable; // update state
+      btn.dataset.disabled = disable;
       alert(data.message);
     } catch (err) {
       console.error("❌ Failed to toggle user:", err);
@@ -140,14 +140,14 @@ function initAccountManagement() {
     }
   }
 
-  // ---------------- Select all checkbox ----------------
+  // ---------------- Select all ----------------
   document.getElementById("selectAllUsers").addEventListener("change", e => {
-    document.querySelectorAll(".userCheckbox").forEach(cb => (cb.checked = e.target.checked));
+    document.querySelectorAll(".userCheckbox").forEach(cb => cb.checked = e.target.checked);
   });
 
   // ---------------- Refresh button ----------------
   document.getElementById("refreshUsersBtn").addEventListener("click", loadUsers);
 
-  // ---------------- Initial load ----------------
+  // Initial load
   loadUsers();
 }

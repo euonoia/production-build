@@ -1,36 +1,56 @@
-
 const cache = { overview: null, events: null, timestamp: 0 };
 const CACHE_DURATION = 5 * 60 * 1000;
 
-// ---------------- Loading Overlay ----------------
-function showLoading(show = true) {
-  let overlay = document.getElementById("loadingOverlay");
-  if (!overlay) {
-    overlay = document.createElement("div");
-    overlay.id = "loadingOverlay";
-    overlay.className = "fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50";
-    overlay.innerHTML = `
-      <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
-        <div class="animate-spin rounded-full h-10 w-10 border-t-4 border-amber-600 border-solid mb-3"></div>
-        <p class="text-gray-700 font-medium">Loading analytics...</p>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-  }
-  overlay.classList.toggle("hidden", !show);
+// ---------------- Skeletons ----------------
+function showSkeletons() {
+  // Overview cards
+  ["totalCountries", "totalUsers", "totalEvents", "totalInvited"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.innerHTML = `<div class="h-6 w-12 mx-auto bg-gray-300 rounded animate-pulse"></div>`;
+    }
+  });
+
+  // Charts
+  [
+    { container: "invitedPieChartContainer", canvas: "invitedPieChart" },
+    { container: "countryBarChartContainer", canvas: "countryBarChart" }
+  ].forEach(c => {
+    const container = document.getElementById(c.container);
+    const canvas = document.getElementById(c.canvas);
+    if (container && canvas) {
+      canvas.classList.add("hidden"); // hide actual canvas
+      const skeleton = container.querySelector("div");
+      if (skeleton) skeleton.classList.remove("hidden");
+    }
+  });
+}
+
+function hideSkeletons() {
+  [
+    { container: "invitedPieChartContainer", canvas: "invitedPieChart" },
+    { container: "countryBarChartContainer", canvas: "countryBarChart" }
+  ].forEach(c => {
+    const container = document.getElementById(c.container);
+    const canvas = document.getElementById(c.canvas);
+    if (container && canvas) {
+      canvas.classList.remove("hidden"); // show canvas
+      const skeleton = container.querySelector("div");
+      if (skeleton) skeleton.classList.add("hidden");
+    }
+  });
 }
 
 // ---------------- Overview ----------------
 async function loadOverview() {
+  showSkeletons();
   const now = Date.now();
 
-  // Use cache if valid
   if (cache.overview && now - cache.timestamp < CACHE_DURATION) {
     updateOverviewUI(cache.overview);
     return;
   }
 
-  showLoading(true);
   try {
     const res = await fetch(`${BASE_URL}/analytics/overview`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -41,8 +61,6 @@ async function loadOverview() {
   } catch (err) { 
     console.error("❌ Failed to load overview:", err);
     alert("Failed to load overview data.");
-  } finally {
-    showLoading(false);
   }
 }
 
@@ -57,13 +75,11 @@ function updateOverviewUI(data) {
 async function loadCharts() {
   const now = Date.now();
 
-  // Use cache if valid
   if (cache.events && now - cache.timestamp < CACHE_DURATION) {
     renderAllCharts(cache.events);
     return;
   }
 
-  showLoading(true);
   try {
     const res = await fetch(`${BASE_URL}/analytics/countries`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -74,15 +90,12 @@ async function loadCharts() {
   } catch (err) {
     console.error("❌ Failed to load charts:", err);
     alert("Failed to load chart data.");
-  } finally {
-    showLoading(false);
   }
 }
 
 function renderAllCharts(countries) {
   renderInvitedPie(countries);
   renderCountryBar(countries);
-  renderLeafletMap(countries);
 }
 
 // ---------------- Pie Chart ----------------
@@ -90,6 +103,7 @@ function renderInvitedPie(countries) {
   const totalInvited = countries.reduce((sum, c) => sum + c.invited, 0);
   const totalNotInvited = countries.reduce((sum, c) => sum + c.notInvited, 0);
 
+  hideSkeletons();
   new Chart(document.getElementById("invitedPieChart"), {
     type: "pie",
     data: {
@@ -109,6 +123,7 @@ function renderCountryBar(countries) {
   const users = countries.map(c => c.users);
   const events = countries.map(c => c.events);
 
+  hideSkeletons();
   new Chart(document.getElementById("countryBarChart"), {
     type: "bar",
     data: {
@@ -123,31 +138,5 @@ function renderCountryBar(countries) {
       scales: { y: { beginAtZero: true } },
       plugins: { legend: { position: "bottom" } }
     }
-  });
-}
-
-// ---------------- Leaflet Map ----------------
-async function renderLeafletMap(countries) {
-  if (window.leafletMap) window.leafletMap.remove();
-
-  const map = L.map("leafletMap").setView([20, 0], 2);
-  window.leafletMap = map;
-
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors",
-  }).addTo(map);
-
-  countries.forEach(c => {
-    if (!c.lat || !c.lng) return;
-
-    const radius = 50000 + c.users * 1000;
-
-    L.circle([c.lat, c.lng], {
-      color: "#f59e0b",
-      fillColor: "#f59e0b",
-      fillOpacity: 0.5,
-      radius
-    }).addTo(map)
-      .bindPopup(`<b>${c.country.replace(/_/g, " ")}</b><br>Users: ${c.users}<br>Events: ${c.events}`);
   });
 }

@@ -7,6 +7,8 @@ const pages = {
     <div class="flex justify-between items-center mb-6 hidden md:flex">
       <h1 class="text-3xl font-bold text-amber-700">Event Analytics Dashboard</h1>
     </div>
+
+    <!-- Overview cards -->
     <div id="overview" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
       <div class="bg-white p-4 rounded shadow text-center">
         <h3 class="text-gray-500 text-sm mb-1">Countries</h3>
@@ -25,22 +27,29 @@ const pages = {
         <p id="totalInvited" class="text-2xl font-semibold">0</p>
       </div>
     </div>
+
+    <!-- Charts -->
     <div class="grid md:grid-cols-2 gap-6">
       <div class="bg-white p-6 rounded shadow">
         <h2 class="text-lg font-semibold mb-3 text-center">Invited vs Not Invited</h2>
-        <canvas id="invitedPieChart"></canvas>
+        <div id="invitedPieChartContainer" class="h-64 relative">
+          <div class="absolute inset-0 bg-gray-300 rounded animate-pulse"></div>
+          <canvas id="invitedPieChart" class="hidden w-full h-full"></canvas>
+        </div>
       </div>
       <div class="bg-white p-6 rounded shadow">
         <h2 class="text-lg font-semibold mb-3 text-center">Users & Events by Country</h2>
-        <canvas id="countryBarChart"></canvas>
+        <div id="countryBarChartContainer" class="h-64 relative">
+          <div class="absolute inset-0 bg-gray-300 rounded animate-pulse"></div>
+          <canvas id="countryBarChart" class="hidden w-full h-full"></canvas>
+        </div>
       </div>
     </div>
-    <div class="bg-white p-6 rounded shadow mt-6">
-      <h2 class="text-lg font-semibold mb-3 text-center">Users by Country (World Map)</h2>
-      <div id="leafletMap" style="height:500px;"></div>
-    </div>
   `,
-  manage_event: null, // dynamic
+  manage_event: `
+    <h2 class="text-2xl font-bold text-amber-700 mb-4">Event Management</h2>
+    <p class="text-gray-500">No events available. Click "Add Event" to create one.</p>
+  `,
   users: `
     <h2 class="text-2xl font-bold text-amber-700 mb-4">Account Management</h2>
     <div class="mb-4 flex justify-between items-center">
@@ -71,17 +80,18 @@ function renderPage(name) {
   switch(name) {
     case "analytics":
       container.innerHTML = pages.analytics;
-      loadOverview();
-      loadCharts();
+      loadOverview?.(); // only call if function exists
+      loadCharts?.();
       break;
 
     case "manage_event":
-      initManageEvents();
+      container.innerHTML = pages.manage_event;
+      initManageEvents?.();
       break;
 
     case "users":
       container.innerHTML = pages.users;
-      initAccountManagement(); // load account management SPA
+      initAccountManagement?.(); // load account management SPA
       break;
 
     default:
@@ -109,7 +119,6 @@ function initAccountManagement() {
       const users = await res.json();
       render(users);
 
-      // Search filter
       searchInput.addEventListener("input", () => {
         const search = searchInput.value.toLowerCase();
         const filtered = users.filter(u =>
@@ -152,7 +161,6 @@ function initAccountManagement() {
       `;
       usersTableBody.appendChild(tr);
 
-      // Role update
       tr.querySelector(".roleSelect").addEventListener("change", async e => {
         const newRole = e.target.value;
         const uid = e.target.dataset.uid;
@@ -169,7 +177,6 @@ function initAccountManagement() {
         }
       });
 
-      // Delete user
       tr.querySelector(".delete-user").addEventListener("click", async e => {
         const uid = e.target.dataset.uid;
         if(!confirm(`Delete user ${u.firstName} ${u.lastName}?`)) return;
@@ -189,3 +196,8 @@ function initAccountManagement() {
   // Initial load
   loadUsers();
 }
+
+// ---------------- Load initial page safely ----------------
+document.addEventListener("DOMContentLoaded", () => {
+  renderPage("analytics"); // load dashboard immediately
+});

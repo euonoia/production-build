@@ -1,5 +1,5 @@
 // Base API URL
-const BASE_URL = "http://localhost:5001/fuze-be491/us-central1/v1";
+const BASE_URL = "http://192.168.1.18:5001/fuze-be491/us-central1/v1";
 
 // Page templates
 const pages = {

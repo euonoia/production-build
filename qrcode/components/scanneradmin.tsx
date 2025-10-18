@@ -4,11 +4,9 @@ import { CameraView } from 'expo-camera';
 import { Camera } from 'expo-camera';
 import { db } from '../FirebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import QRCode from 'react-native-qrcode-svg';
 
-// ✅ Polyfill for Buffer in React Native (fixes "Buffer not found" in TS)
+// ✅ Polyfill for Buffer (for base64 encoding)
 import { Buffer } from 'buffer';
 global.Buffer = global.Buffer || Buffer;
 
@@ -35,37 +33,36 @@ export default function Scanner({ visible, onClose }: Props) {
     })();
   }, []);
 
-  // ✅ Barcode handler
+  // ✅ Handle QR code scanning
   const handleBarcodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
 
     try {
-      // ✅ decode base64 safely
+      // Decode Base64
       let parsed: any;
       try {
         const decoded = atob(data);
         parsed = JSON.parse(decoded);
       } catch {
-        Alert.alert('Invalid QR format', 'QR code must include userId and country.');
+        Alert.alert('Invalid QR format', 'QR must include userId and country.');
         setTimeout(() => setScanned(false), 1500);
         return;
       }
 
-      const scannedUserId = parsed.userId;
-      const scannedCountry = parsed.country;
-
+      const { userId: scannedUserId, country: scannedCountry } = parsed;
       if (!scannedUserId || !scannedCountry) {
         Alert.alert('Missing data in QR code');
         setTimeout(() => setScanned(false), 1500);
         return;
       }
 
+      // Fetch Firestore user
       const eventRef = doc(db, 'events', scannedCountry.toLowerCase(), 'users', scannedUserId);
       const eventDoc = await getDoc(eventRef);
 
       if (!eventDoc.exists()) {
-        Alert.alert('User not registered in event database.');
+        Alert.alert('User not found in event database.');
         setTimeout(() => setScanned(false), 1500);
         return;
       }
@@ -98,99 +95,30 @@ export default function Scanner({ visible, onClose }: Props) {
     }
   };
 
-  // ✅ Print or save to PDF
-  const handlePrint = async (mode: 'print' | 'save') => {
+  // ✅ Only notify backend & web (no phone printing)
+  const handlePrint = async () => {
     if (!invitedUser) return;
 
-    const { firstName, lastName, country, userId, assignedEvent } = invitedUser;
-    const qrData = JSON.stringify({ userId, country, assignedEvent });
+    const BASE_URL = "http://192.168.1.18:5001/fuze-be491/us-central1/v1";
+    const { country, userId, assignedEvent } = invitedUser;
 
-    // ✅ cross-platform base64
-    const qrEncoded =
-      typeof btoa !== 'undefined'
-        ? btoa(qrData)
-        : Buffer.from(qrData, 'utf-8').toString('base64');
+    try {
+      // 1️⃣ Mark printed in Firestore
+      await fetch(`${BASE_URL}/events/${country}/users/${userId}/markPrinted`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+      });
+      console.log("✅ Marked user as printed in Firestore");
 
-    const html = `
-      <html>
-        <head>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              background: #f7f7f7;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              height: 100vh;
-            }
-            .id-card {
-              width: 340px;
-              height: 520px;
-              background: white;
-              border-radius: 20px;
-              box-shadow: 0 0 12px rgba(0,0,0,0.2);
-              text-align: center;
-              padding: 30px;
-            }
-            .header {
-              background-color: #2e7d32;
-              color: white;
-              border-radius: 12px;
-              padding: 10px;
-              margin-bottom: 20px;
-              font-size: 22px;
-              font-weight: bold;
-            }
-            .name {
-              font-size: 26px;
-              font-weight: bold;
-              color: #222;
-              margin: 10px 0;
-            }
-            .country {
-              font-size: 18px;
-              color: #555;
-              margin-bottom: 10px;
-            }
-            .event {
-              font-size: 16px;
-              color: #1b5e20;
-              margin-bottom: 16px;
-              font-weight: bold;
-            }
-            .status {
-              font-size: 16px;
-              color: #2e7d32;
-              font-weight: bold;
-              margin-bottom: 16px;
-            }
-            img {
-              margin-top: 15px;
-              border: 2px solid #2e7d32;
-              border-radius: 8px;
-              padding: 5px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="id-card">
-            <div class="header">🎟️ Event Access Pass</div>
-            <div class="name">${firstName} ${lastName}</div>
-            <div class="country">${country.toUpperCase()}</div>
-            <div class="event">Event: ${assignedEvent}</div>
-            <div class="status">✅ INVITED GUEST</div>
-            <p>User ID: ${userId}</p>
-            <img src="https://api.qrserver.com/v1/create-qr-code/?data=${qrEncoded}&size=150x150" />
-          </div>
-        </body>
-      </html>
-    `;
-
-    if (mode === 'print') {
-      await Print.printAsync({ html });
-    } else {
-      const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri);
+      // 2️⃣ Notify web dashboard (via notifyPrint)
+            await fetch(`${BASE_URL}/notifyPrint`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, country, assignedEvent }),
+      });
+      console.log("📢 Web notified to open print modal");
+    } catch (err) {
+      console.error("⚠️ Failed to notify backend/web:", err);
     }
 
     setInvitedUser(null);
@@ -220,6 +148,7 @@ export default function Scanner({ visible, onClose }: Props) {
     );
   }
 
+  // ✅ Main UI
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalContainer}>
@@ -257,8 +186,7 @@ export default function Scanner({ visible, onClose }: Props) {
 
             <View style={styles.buttonRow}>
               <Button title="Close" onPress={() => { setInvitedUser(null); setScanned(false); }} />
-              <Button title="Print Now" onPress={() => handlePrint('print')} />
-              <Button title="Save as PDF" onPress={() => handlePrint('save')} />
+              <Button title="Print Now" onPress={handlePrint} />
             </View>
           </View>
         )}

@@ -18,7 +18,7 @@ router.get("/", async (req, res) => {
 // 🔹 POST create new event under country
 router.post("/:country", async (req, res) => {
   const { country } = req.params;
-  const { title, startTime, endTime } = req.body; // Added endTime
+  const { title, startTime, endTime } = req.body;
   const db = req.db;
 
   if (!title || !startTime || !endTime)
@@ -39,7 +39,7 @@ router.post("/:country", async (req, res) => {
       eventId: newEventRef.id,
       title,
       startTime: new Date(startTime),
-      endTime: new Date(endTime), // store endTime
+      endTime: new Date(endTime),
       createdAt: new Date(),
     };
 
@@ -71,7 +71,7 @@ router.get("/:country", async (req, res) => {
         eventId: doc.id,
         ...data,
         startTime: data.startTime?.toDate?.().toISOString() ?? data.startTime,
-        endTime: data.endTime?.toDate?.().toISOString() ?? data.endTime, // return endTime
+        endTime: data.endTime?.toDate?.().toISOString() ?? data.endTime,
       };
     });
 
@@ -85,7 +85,7 @@ router.get("/:country", async (req, res) => {
 // 🔹 Assign event to multiple users
 router.post("/:country/assign", async (req, res) => {
   const { country } = req.params;
-  const { eventId, userIds } = req.body; // changed from eventTitle to eventId
+  const { eventId, userIds } = req.body;
   const db = req.db;
 
   if (!eventId || !Array.isArray(userIds))
@@ -100,8 +100,7 @@ router.post("/:country/assign", async (req, res) => {
       .doc(eventId);
 
     const eventDoc = await eventRef.get();
-    if (!eventDoc.exists)
-      return res.status(404).send("Event not found");
+    if (!eventDoc.exists) return res.status(404).send("Event not found");
 
     const eventTitle = eventDoc.data().title;
     const batch = db.batch();
@@ -116,11 +115,90 @@ router.post("/:country/assign", async (req, res) => {
     });
 
     await batch.commit();
-    res.status(200).send(`Event "${eventTitle}" assigned to ${userIds.length} users`);
+    res
+      .status(200)
+      .send(`Event "${eventTitle}" assigned to ${userIds.length} users`);
   } catch (err) {
     console.error("❌ Error assigning event:", err);
     res.status(500).send(err.message);
   }
 });
+
+// 🔹 GET users assigned to a specific event
+router.get("/:country/assigned/:eventName", async (req, res) => {
+  const db = req.db;
+  const { country, eventName } = req.params;
+  const normalized = normalizeCountry(country);
+  const decodedEvent = decodeURIComponent(eventName);
+
+  try {
+    const usersSnap = await db
+      .collection("events")
+      .doc(normalized)
+      .collection("users")
+      .where("assignedEvent", "==", decodedEvent)
+      .get();
+
+    if (usersSnap.empty) {
+      return res.status(404).json({
+        message: `No users found for event "${decodedEvent}" in ${country}`,
+      });
+    }
+
+    const users = usersSnap.docs.map((doc) => ({
+      userId: doc.id,
+      ...doc.data(),
+    }));
+
+    res.json(users);
+  } catch (err) {
+    console.error("❌ Error fetching assigned users:", err);
+    res.status(500).send(err.message);
+  }
+});
+
+// ✅ PATCH: Mark user as printed
+router.patch("/:country/users/:userId/markPrinted", async (req, res) => {
+  const db = req.db;
+  const { country, userId } = req.params;
+  const normalized = normalizeCountry(country);
+
+  try {
+    const userRef = db.collection("events").doc(normalized).collection("users").doc(userId);
+    await userRef.update({
+      qrcodePrinted: true,
+      updatedAt: new Date(),
+    });
+
+    // 🔹 Fetch user data to broadcast
+    const userSnap = await userRef.get();
+    const userData = userSnap.data();
+
+    // ✅ Broadcast event to all connected web clients
+    const payload = {
+      country: normalized,
+      assignedEvent: userData.assignedEvent || null,
+      firstName: userData.firstName || "",
+      lastName: userData.lastName || "",
+      email: userData.email || "",
+      userId,
+    };
+
+    // send to all SSE clients (from notifyPrint.routes.js)
+    if (global.clients && Array.isArray(global.clients)) {
+      global.clients.forEach(client => {
+        client.write(`data: ${JSON.stringify(payload)}\n\n`);
+      });
+      console.log(`📢 Broadcast print event for ${payload.firstName} ${payload.lastName}`);
+    }
+
+    res.json({ success: true, message: "Marked as printed", payload });
+  } catch (error) {
+    console.error("❌ Error marking user as printed:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 
 module.exports = router;

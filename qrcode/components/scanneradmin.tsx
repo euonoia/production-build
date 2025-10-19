@@ -95,35 +95,35 @@ export default function Scanner({ visible, onClose }: Props) {
     }
   };
 
-  // ✅ Only notify backend & web (no phone printing)
-  const handlePrint = async () => {
-    if (!invitedUser) return;
+        //notify backend & web 
+      const handlePrint = async () => {
+        if (!invitedUser) return;
 
-    const BASE_URL = "http://192.168.1.18:5001/fuze-be491/us-central1/v1";
-    const { country, userId, assignedEvent } = invitedUser;
+        const BASE_URL = "http://192.168.1.18:5001/fuze-be491/us-central1/v1";
+        const { country, userId, assignedEvent, firstName, lastName } = invitedUser; // <-- include names
 
-    try {
-      // 1️⃣ Mark printed in Firestore
-      await fetch(`${BASE_URL}/events/${country}/users/${userId}/markPrinted`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-      });
-      console.log("✅ Marked user as printed in Firestore");
+        try {
+          // 1️⃣ Mark printed in Firestore
+          await fetch(`${BASE_URL}/events/${country}/users/${userId}/markPrinted`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+          });
+          console.log("✅ Marked user as printed in Firestore");
 
-      // 2️⃣ Notify web dashboard (via notifyPrint)
-            await fetch(`${BASE_URL}/notifyPrint`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, country, assignedEvent }),
-      });
-      console.log("📢 Web notified to open print modal");
-    } catch (err) {
-      console.error("⚠️ Failed to notify backend/web:", err);
-    }
+          // 2️⃣ Notify web dashboard (via notifyPrint)
+          await fetch(`${BASE_URL}/notifyPrint`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId, country, assignedEvent, firstName, lastName }), // <-- include names
+          });
+          console.log("📢 Web notified to open print modal");
+        } catch (err) {
+          console.error("⚠️ Failed to notify backend/web:", err);
+        }
 
-    setInvitedUser(null);
-    setScanned(false);
-  };
+        setInvitedUser(null);
+        setScanned(false);
+      };
 
   // ✅ Camera permission states
   if (hasPermission === null) {

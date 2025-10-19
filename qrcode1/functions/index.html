@@ -56,18 +56,5 @@
 <script>
   renderPage("analytics"); // initial page load
 </script>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-  import { getFirestore } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyAZblI7S4smfLe5sHfbc2VZqQLa8l2rIAc",
-    authDomain: "fuze-be491.firebaseapp.com",
-    projectId: "fuze-be491",
-  };
-
-  window.firebaseApp = initializeApp(firebaseConfig);
-  window.db = getFirestore(window.firebaseApp);
-</script>
 </body>
 </html>

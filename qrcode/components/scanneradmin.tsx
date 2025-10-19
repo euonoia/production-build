@@ -186,7 +186,7 @@ export default function Scanner({ visible, onClose }: Props) {
 
             <View style={styles.buttonRow}>
               <Button title="Close" onPress={() => { setInvitedUser(null); setScanned(false); }} />
-              <Button title="Print Now" onPress={handlePrint} />
+              <Button title="Generate PDF" onPress={handlePrint} />
             </View>
           </View>
         )}

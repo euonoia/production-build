@@ -46,6 +46,8 @@ function initEventOrganizer() {
         <button id="cancelPrintBtn" class="bg-red-500 text-white px-4 py-2 rounded">Cancel</button>
       </div>
     </div>
+
+    <div id="debugOverlay" class="fixed top-0 right-0 bg-gray-900 text-white p-4 max-w-sm text-xs font-mono z-50 overflow-y-auto" style="height: 100vh;"></div>
   `;
 
   // Elements
@@ -57,10 +59,17 @@ function initEventOrganizer() {
   const printUserInfo = document.getElementById("printUserInfo");
   const confirmPrintBtn = document.getElementById("confirmPrintBtn");
   const cancelPrintBtn = document.getElementById("cancelPrintBtn");
+  const debugOverlay = document.getElementById("debugOverlay");
 
   let selectedCountry = "";
   let selectedEvent = "";
   let pendingPrintData = null;
+
+  function debugLog(msg, data = null) {
+    console.log(msg, data ?? "");
+    debugOverlay.innerHTML += `📡 ${msg}${data ? ": " + JSON.stringify(data) : ""}<br/>`;
+    debugOverlay.scrollTop = debugOverlay.scrollHeight;
+  }
 
   // 🔹 Load countries
   async function loadCountries() {
@@ -74,6 +83,7 @@ function initEventOrganizer() {
         opt.textContent = c.country;
         countrySelect.appendChild(opt);
       });
+      debugLog("🌍 Countries loaded", countries.map(c => c.country));
     } catch (err) {
       console.error("❌ Error loading countries:", err);
     }
@@ -86,6 +96,8 @@ function initEventOrganizer() {
     usersTable.innerHTML = "";
     eventSummary.textContent = "No event selected.";
 
+    debugLog("🌍 Country selected", selectedCountry);
+
     if (!selectedCountry) return;
 
     try {
@@ -97,6 +109,7 @@ function initEventOrganizer() {
         opt.textContent = e.title;
         eventSelect.appendChild(opt);
       });
+      debugLog(`🎫 Events loaded for ${selectedCountry}`, events.map(e => e.title));
     } catch (err) {
       console.error("❌ Error loading events:", err);
     }
@@ -108,6 +121,7 @@ function initEventOrganizer() {
     if (!selectedEvent) return;
 
     await loadAssignedUsers(selectedCountry, selectedEvent);
+    debugLog("🎫 Event selected", selectedEvent);
     connectToPrintStream(selectedCountry, selectedEvent);
   });
 
@@ -120,6 +134,7 @@ function initEventOrganizer() {
 
       usersTable.innerHTML = "";
       eventSummary.textContent = `Country: ${country} | Event: ${eventName} | Users: ${users.length}`;
+      debugLog("👥 Assigned users loaded", users.length);
 
       users.forEach(u => {
         usersTable.innerHTML += `
@@ -135,42 +150,53 @@ function initEventOrganizer() {
     }
   }
 
-  // ✅ Connect to print stream (SSE)
+  // ✅ Connect to print stream (SSE) with filtering
   function connectToPrintStream(country, eventName) {
     if (!country || !eventName) return;
 
     // Close previous connection if exists
     if (window.currentEventSource) {
+      debugLog("🔌 Closing previous SSE connection");
       window.currentEventSource.close();
     }
 
-    console.log(`🔌 Connecting to print stream for ${country} / ${eventName}`);
+    debugLog(`🔌 Connecting to print stream for ${country} / ${eventName}`);
     const evtSource = new EventSource(`${BASE_URL}/notifyPrint/stream`);
     window.currentEventSource = evtSource;
 
     evtSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      console.log("🖨️ Print event received:", data);
+      debugLog("📡 SSE received", data);
 
-      pendingPrintData = data;
-      printUserInfo.textContent = `
-        User: ${data.firstName || "Unknown"} ${data.lastName || ""}
-        | Country: ${data.country}
-        | Event: ${data.assignedEvent || "N/A"}
-      `;
-      printModal.classList.remove("hidden");
+      // ✅ Only trigger modal if country/event match selected
+      if (
+        data.country?.toLowerCase().trim() === selectedCountry.toLowerCase().trim() &&
+        data.assignedEvent?.toLowerCase().trim() === selectedEvent.toLowerCase().trim()
+      ) {
+        pendingPrintData = data;
+        printUserInfo.textContent = `
+          User: ${data.firstName || "Unknown"} ${data.lastName || ""}
+          | Country: ${data.country}
+          | Event: ${data.assignedEvent || "N/A"}
+        `;
+        printModal.classList.remove("hidden");
+        debugLog(`✅ Print modal triggered for ${data.firstName} ${data.lastName}`);
+      } else {
+        debugLog(`⚠️ Ignored print event (not matching selected country/event)`);
+      }
     };
 
     evtSource.onerror = (err) => {
       console.warn("⚠️ SSE disconnected. Retrying in 3s...", err);
       evtSource.close();
-      setTimeout(() => connectToPrintStream(country, eventName), 3000);
+      setTimeout(() => connectToPrintStream(selectedCountry, selectedEvent), 3000);
     };
   }
 
   // ✅ Modal actions
   confirmPrintBtn.addEventListener("click", () => {
     if (!pendingPrintData) return;
+
     const html = `
       <html><body>
         <h2>Event Ticket</h2>
